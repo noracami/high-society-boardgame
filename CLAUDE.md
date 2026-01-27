@@ -1,0 +1,82 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## 專案概述
+
+「上流社會 (High Society)」是一款 Discord Activity 回合制策略桌遊，玩家在 Discord 語音頻道內進行即時競標。
+
+## 目前開發階段
+
+**Phase 1: Discord Activity 驗證** ← 目前階段
+- [ ] 驗證 Discord Activity 可在 Discord 內開啟
+- [ ] 取得 Discord token
+- [ ] 後端驗證 token 並回傳自訂 token
+
+**Phase 2: Socket.io 即時連線**
+- [ ] 建立 Socket.io 連線
+- [ ] 實作房間加入/離開
+
+**Phase 3: MVP 完成**
+- [ ] 開始遊戲按鈕
+- [ ] 結束遊戲按鈕
+
+**後續迭代：遊戲規則實作**
+- 釐清完整遊戲規則後逐步實作拍賣機制
+
+## 開發指令
+
+```bash
+pnpm install    # 安裝依賴
+pnpm dev        # 啟動所有開發伺服器 (Turbo)
+pnpm build      # 建置所有套件
+```
+
+## 架構
+
+Turborepo monorepo，使用 pnpm workspace：
+
+```
+packages/
+├── frontend/   # Vue 3 + Vite + TypeScript
+├── backend/    # Express + Socket.io + TypeScript
+└── shared/     # 共用型別定義 (@high-society/shared)
+```
+
+**核心技術決策：**
+- **Authoritative Server 模式**：所有遊戲邏輯在後端驗證，前端僅為狀態投影
+- **PostgreSQL JSONB**：儲存遊戲狀態，伺服器重啟不丟失
+- **Socket.io Room**：以 Discord `activity_instance_id` 作為房間 ID
+- **Kamal 2 部署**：Docker 容器化，Kamal Proxy 處理 TLS 終止與 WebSocket 轉發
+
+## 共用型別
+
+`@high-society/shared` 套件定義遊戲核心型別：
+- `CardValue`: 手牌面額 (1, 2, 3, 4, 6, 8, 10, 12, 15, 20, 25)
+- `Player`: 玩家資料 (id, name, hand, spent)
+
+## Commit 規範
+
+遵循 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)：
+
+```
+<type>(<scope>): <摘要 commit 目的>
+
+<body>
+```
+
+**Type**: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`
+
+**Scope** (可選): `frontend`, `backend`, `shared`
+
+**範例**:
+```
+feat(frontend): 實作 Discord OAuth 登入流程
+
+整合 Discord Embedded App SDK，完成 token 交換機制
+```
+
+## 注意事項
+
+- 斷線重連需實作狀態回填機制
+- Cloudflare 使用時 SSL 模式須設為 Full (Strict)
