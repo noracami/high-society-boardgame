@@ -89,3 +89,4 @@ jobs:
         run: kamal deploy --skip-push
         env:
           KAMAL_HOST: ${{ secrets.KAMAL_HOST }}
+          KAMAL_REGISTRY_PASSWORD: ${{ secrets.GCP_ARTIFACT_KEY }}
