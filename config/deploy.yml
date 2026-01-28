@@ -30,4 +30,5 @@ ssh:
   user: kamal_for_gha
 
 builder:
+  arch: amd64
   remote: false
