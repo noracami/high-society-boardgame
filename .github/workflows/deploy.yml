@@ -50,11 +50,15 @@ jobs:
           username: _json_key_base64
           password: ${{ secrets.GCP_ARTIFACT_KEY }}
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          platforms: linux/arm64
           tags: asia-east1-docker.pkg.dev/careful-broker-485510-r0/high-society/app:${{ github.sha }},asia-east1-docker.pkg.dev/careful-broker-485510-r0/high-society/app:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
