@@ -169,3 +169,9 @@ localStorage.removeItem('pendingBid')
 - 遊戲歷史紀錄
 - 勝率統計
 - 更多卡牌變體規則
+
+---
+
+## CI/CD 改進（待規劃）
+
+- [ ] Workflow 觸發範圍優化：文件變更（*.md）不應觸發 deploy workflow
