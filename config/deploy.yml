@@ -27,7 +27,7 @@ env:
     - DISCORD_CLIENT_SECRET
 
 ssh:
-  user: root
+  user: kamal_for_gha
 
 builder:
   remote: false
