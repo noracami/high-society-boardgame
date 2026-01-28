@@ -32,3 +32,4 @@ pnpm-debug.log*
 
 # Kamal
 .kamal
+.claude/settings.local.json

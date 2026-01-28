@@ -33,7 +33,7 @@ jobs:
         run: pnpm test:e2e
 
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     needs: test
 
     steps:
@@ -50,15 +50,11 @@ jobs:
           username: _json_key_base64
           password: ${{ secrets.GCP_ARTIFACT_KEY }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          platforms: linux/arm64
           tags: asia-east1-docker.pkg.dev/careful-broker-485510-r0/high-society/app:${{ github.sha }},asia-east1-docker.pkg.dev/careful-broker-485510-r0/high-society/app:latest
           labels: |
             service=high-society
