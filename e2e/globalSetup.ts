@@ -22,11 +22,15 @@ async function waitForServer(maxAttempts = 30): Promise<void> {
 }
 
 export async function setup(): Promise<void> {
-  console.log('[1/3] Building Docker image...')
-  execSync(`docker build -t ${IMAGE_NAME} .`, {
-    stdio: 'inherit',
-    cwd: process.cwd().replace('/e2e', ''),
-  })
+  if (process.env.SKIP_DOCKER_BUILD) {
+    console.log('[1/3] Skipping Docker build (using pre-built image)...')
+  } else {
+    console.log('[1/3] Building Docker image...')
+    execSync(`docker build -t ${IMAGE_NAME} .`, {
+      stdio: 'inherit',
+      cwd: process.cwd().replace('/e2e', ''),
+    })
+  }
 
   console.log('[2/3] Starting container...')
   // Stop and remove any existing container
