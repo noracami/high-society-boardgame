@@ -60,6 +60,8 @@ jobs:
           push: true
           platforms: linux/arm64
           tags: asia-east1-docker.pkg.dev/careful-broker-485510-r0/high-society/app:${{ github.sha }},asia-east1-docker.pkg.dev/careful-broker-485510-r0/high-society/app:latest
+          labels: |
+            service=high-society
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
