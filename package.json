@@ -8,12 +8,17 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "turbo dev",
     "build": "turbo build",
+    "start:prod": "NODE_ENV=production node packages/backend/dist/index.js",
+    "docker:build": "docker build -t high-society .",
+    "docker:run": "docker run --rm -p 3001:3001 -e DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-test} -e DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-test} high-society",
+    "test:e2e": "vitest run --config e2e/vitest.config.ts",
     "tunnel": "npx cloudflared tunnel --url http://localhost:5173"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "turbo": "^2.7.6"
+    "turbo": "^2.7.6",
+    "vitest": "^4.0.18"
   }
 }

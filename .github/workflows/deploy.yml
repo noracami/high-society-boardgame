@@ -1,0 +1,85 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GCP Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: asia-east1-docker.pkg.dev
+          username: _json_key_base64
+          password: ${{ secrets.GCP_ARTIFACT_KEY }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: asia-east1-docker.pkg.dev/careful-broker-485510-r0/high-society/app:${{ github.sha }},asia-east1-docker.pkg.dev/careful-broker-485510-r0/high-society/app:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: false
+
+      - name: Install Kamal
+        run: gem install kamal -v '~> 2.0'
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add host to known_hosts
+        run: ssh-keyscan -H ${{ secrets.KAMAL_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy with Kamal
+        run: kamal deploy --skip-push
+        env:
+          KAMAL_REGISTRY_PASSWORD: ${{ secrets.GCP_ARTIFACT_KEY }}
+          KAMAL_HOST: ${{ secrets.KAMAL_HOST }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          DISCORD_CLIENT_SECRET: ${{ secrets.DISCORD_CLIENT_SECRET }}

@@ -1,0 +1,33 @@
+service: high-society
+image: asia-east1-docker.pkg.dev/careful-broker-485510-r0/high-society/app
+
+servers:
+  web:
+    hosts:
+      - <%= ENV['KAMAL_HOST'] %>
+
+proxy:
+  ssl: true
+  host: hs.miao-bao.cc
+  app_port: 3001
+  healthcheck:
+    path: /up
+
+registry:
+  server: asia-east1-docker.pkg.dev
+  username: _json_key_base64
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+env:
+  clear:
+    NODE_ENV: production
+  secret:
+    - DISCORD_CLIENT_ID
+    - DISCORD_CLIENT_SECRET
+
+ssh:
+  user: root
+
+builder:
+  remote: false
