@@ -22,8 +22,8 @@ env:
   clear:
     NODE_ENV: production
   secret:
-    DISCORD_CLIENT_ID: $DISCORD_CLIENT_ID
-    DISCORD_CLIENT_SECRET: $DISCORD_CLIENT_SECRET
+    - DISCORD_CLIENT_ID
+    - DISCORD_CLIENT_SECRET
 
 ssh:
   user: kamal_for_gha
