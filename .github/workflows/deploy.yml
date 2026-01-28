@@ -26,6 +26,8 @@ jobs:
           context: .
           load: true
           tags: high-society:latest
+          build-args: |
+            VITE_DISCORD_CLIENT_ID=${{ secrets.DISCORD_CLIENT_ID }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
