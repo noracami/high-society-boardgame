@@ -15,6 +15,9 @@ proxy:
 
 registry:
   server: asia-east1-docker.pkg.dev
+  username: _json_key_base64
+  password:
+    - KAMAL_REGISTRY_PASSWORD
 
 env:
   clear:
