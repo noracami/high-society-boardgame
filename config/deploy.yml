@@ -16,15 +16,14 @@ proxy:
 registry:
   server: asia-east1-docker.pkg.dev
   username: _json_key_base64
-  password:
-    - KAMAL_REGISTRY_PASSWORD
+  password: $KAMAL_REGISTRY_PASSWORD
 
 env:
   clear:
     NODE_ENV: production
   secret:
-    - DISCORD_CLIENT_ID
-    - DISCORD_CLIENT_SECRET
+    DISCORD_CLIENT_ID: $DISCORD_CLIENT_ID
+    DISCORD_CLIENT_SECRET: $DISCORD_CLIENT_SECRET
 
 ssh:
   user: kamal_for_gha
