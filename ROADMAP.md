@@ -130,6 +130,34 @@
 
 - [ ] 斷線重連：回填遊戲狀態
 - [ ] 錯誤處理：網路異常、非法操作提示
+
+### 實作備註
+
+**斷線重連策略**
+
+部署時 Kamal proxy 會 drain 舊連線，超過 `drain_timeout` 後強制斷開 WebSocket。Socket.io 會自動重連，但 client-side 的 UI 狀態（如：選牌中但尚未送出）會遺失。
+
+解決方案：用 localStorage 暫存 pending 狀態，重連後還原。
+
+```typescript
+// 選牌時
+localStorage.setItem('pendingBid', JSON.stringify({
+  cards: selectedCards,
+  timestamp: Date.now(),
+  roundId: currentRound.id
+}))
+
+// 重連後
+const pending = JSON.parse(localStorage.getItem('pendingBid') || 'null')
+if (pending
+    && Date.now() - pending.timestamp < 60_000  // 1 分鐘內有效
+    && pending.roundId === currentRound.id) {
+  selectedCards = pending.cards
+}
+
+// 出牌成功後
+localStorage.removeItem('pendingBid')
+```
 - [ ] UI/UX 改善：動畫、音效（可選）
 - [ ] 遊戲結束後可「再來一局」
 
