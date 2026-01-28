@@ -1,6 +1,6 @@
-# CLAUDE.md
+# high society
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents working with this repository.
 
 ## 專案概述
 
@@ -8,21 +8,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 目前開發階段
 
-**Phase 1: Discord Activity 驗證** ← 目前階段
-- [ ] 驗證 Discord Activity 可在 Discord 內開啟
-- [ ] 取得 Discord token
-- [ ] 後端驗證 token 並回傳自訂 token
+> 完整 Roadmap 請參考 [ROADMAP.md](./ROADMAP.md)
 
-**Phase 2: Socket.io 即時連線**
-- [ ] 建立 Socket.io 連線
-- [ ] 實作房間加入/離開
+**Phase 1: 骨架** ← 目前
 
-**Phase 3: MVP 完成**
-- [ ] 開始遊戲按鈕
-- [ ] 結束遊戲按鈕
+目標：Discord 內打開，看到自己是誰
 
-**後續迭代：遊戲規則實作**
-- 釐清完整遊戲規則後逐步實作拍賣機制
+- [ ] Activity 可在 Discord 內正常開啟
+- [ ] 前端取得 Discord authorization code
+- [ ] 後端用 code 換取 access token
+- [ ] 前端顯示當前用戶名稱
 
 ## 開發指令
 
@@ -44,6 +39,7 @@ packages/
 ```
 
 **核心技術決策：**
+
 - **Authoritative Server 模式**：所有遊戲邏輯在後端驗證，前端僅為狀態投影
 - **PostgreSQL JSONB**：儲存遊戲狀態，伺服器重啟不丟失
 - **Socket.io Room**：以 Discord `activity_instance_id` 作為房間 ID
@@ -52,6 +48,7 @@ packages/
 ## 共用型別
 
 `@high-society/shared` 套件定義遊戲核心型別：
+
 - `CardValue`: 手牌面額 (1, 2, 3, 4, 6, 8, 10, 12, 15, 20, 25)
 - `Player`: 玩家資料 (id, name, hand, spent)
 
@@ -70,6 +67,7 @@ packages/
 **Scope** (可選): `frontend`, `backend`, `shared`
 
 **範例**:
+
 ```
 feat(frontend): 實作 Discord OAuth 登入流程
 
