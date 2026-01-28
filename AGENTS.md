@@ -25,6 +25,7 @@ This file provides guidance to AI coding agents working with this repository.
 pnpm install    # 安裝依賴
 pnpm dev        # 啟動所有開發伺服器 (Turbo)
 pnpm build      # 建置所有套件
+pnpm test:e2e   # E2E 測試（需要 Docker）
 ```
 
 ## 架構
@@ -44,6 +45,21 @@ packages/
 - **PostgreSQL JSONB**：儲存遊戲狀態，伺服器重啟不丟失
 - **Socket.io Room**：以 Discord `activity_instance_id` 作為房間 ID
 - **Kamal 2 部署**：Docker 容器化，Kamal Proxy 處理 TLS 終止與 WebSocket 轉發
+
+## 部署
+
+**Production URL**: `https://hs.miao-bao.cc`
+
+**CI/CD Pipeline** (GitHub Actions):
+```
+push to main → test (E2E) → deploy (Kamal)
+```
+
+- **Runner**: `ubuntu-24.04-arm` (ARM64 原生，與 VM 架構相同)
+- **Docker Cache**: test 和 deploy 共用 GHA cache，加速建構
+- **Kamal Timeout**:
+  - `deploy_timeout: 10` - 等待新 container 健康檢查
+  - `drain_timeout: 5` - 等待舊連線結束（配合 localStorage 重連策略）
 
 ## 共用型別
 
