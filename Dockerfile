@@ -25,6 +25,9 @@ RUN pnpm --filter @high-society/shared build
 FROM build-shared AS build-frontend
 WORKDIR /app
 
+ARG VITE_DISCORD_CLIENT_ID
+ENV VITE_DISCORD_CLIENT_ID=$VITE_DISCORD_CLIENT_ID
+
 COPY packages/frontend ./packages/frontend
 RUN pnpm --filter frontend build
 
