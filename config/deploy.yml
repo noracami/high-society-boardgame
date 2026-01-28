@@ -1,6 +1,9 @@
 service: high-society
 image: careful-broker-485510-r0/high-society/app
 
+deploy_timeout: 10
+drain_timeout: 5
+
 servers:
   web:
     hosts:
@@ -10,8 +13,6 @@ proxy:
   ssl: true
   host: hs.miao-bao.cc
   app_port: 3001
-  deploy-timeout: 10s
-  drain-timeout: 5s
   healthcheck:
     path: /up
 
