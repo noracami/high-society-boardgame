@@ -10,8 +10,8 @@ proxy:
   ssl: true
   host: hs.miao-bao.cc
   app_port: 3001
-  deploy_timeout: 10s
-  drain_timeout: 5s
+  deploy-timeout: 10s
+  drain-timeout: 5s
   healthcheck:
     path: /up
 
