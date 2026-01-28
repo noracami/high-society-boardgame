@@ -1,5 +1,5 @@
 service: high-society
-image: asia-east1-docker.pkg.dev/careful-broker-485510-r0/high-society/app
+image: careful-broker-485510-r0/high-society/app
 
 servers:
   web:
