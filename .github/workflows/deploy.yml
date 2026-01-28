@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - name: Checkout
@@ -26,8 +26,8 @@ jobs:
           context: .
           load: true
           tags: high-society:latest
-          cache-from: type=gha,scope=test
-          cache-to: type=gha,mode=max,scope=test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
