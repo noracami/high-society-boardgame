@@ -10,14 +10,14 @@ This file provides guidance to AI coding agents working with this repository.
 
 > 完整 Roadmap 請參考 [ROADMAP.md](./ROADMAP.md)
 
-**Phase 2: 連線 + 資料庫** ← 目前
+**Phase 2: 連線 + 資料庫** ← 已實作待驗收
 
 目標：多人同時在線，房間狀態持久化
 
-- [ ] 設定 PostgreSQL（Docker Compose）
-- [ ] 建立 Socket.io 連線
-- [ ] 以 `instance_id` 作為 Room ID
-- [ ] 前端顯示所有在線用戶
+- [x] 設定 PostgreSQL（Kamal Accessory）
+- [x] 建立 Socket.io 連線
+- [x] 以 `instance_id` 作為 Room ID
+- [x] 前端顯示所有在線用戶
 
 ## 開發指令
 

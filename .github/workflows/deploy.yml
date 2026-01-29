@@ -120,3 +120,8 @@ jobs:
         env:
           KAMAL_HOST: ${{ secrets.KAMAL_HOST }}
           KAMAL_REGISTRY_PASSWORD: ${{ secrets.GCP_ARTIFACT_KEY }}
+
+      - name: Run Prisma migrate
+        run: kamal app exec "pnpm --filter backend exec prisma migrate deploy"
+        env:
+          KAMAL_HOST: ${{ secrets.KAMAL_HOST }}

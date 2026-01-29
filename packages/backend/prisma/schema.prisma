@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Room {
+  id         String   @id @default(uuid())
+  instanceId String   @unique @map("instance_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  players    Player[]
+
+  @@map("rooms")
+}
+
+model Player {
+  id        String   @id @default(uuid())
+  discordId String   @map("discord_id")
+  name      String
+  avatar    String?
+  roomId    String   @map("room_id")
+  isOnline  Boolean  @default(true) @map("is_online")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, discordId])
+  @@map("players")
+}

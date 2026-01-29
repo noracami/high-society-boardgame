@@ -46,7 +46,7 @@ export async function setup(): Promise<void> {
   }
 
   execSync(
-    `docker run -d --name ${CONTAINER_NAME} -p ${PORT}:3001 -e DISCORD_CLIENT_ID=test -e DISCORD_CLIENT_SECRET=test ${IMAGE_NAME}`,
+    `docker run -d --name ${CONTAINER_NAME} -p ${PORT}:3001 -e DISCORD_CLIENT_ID=test -e DISCORD_CLIENT_SECRET=test -e DATABASE_URL=postgresql://test:test@localhost:5432/test ${IMAGE_NAME}`,
     { stdio: 'inherit', cwd: process.cwd().replace('/e2e', '') }
   )
 

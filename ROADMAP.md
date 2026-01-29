@@ -25,7 +25,7 @@
 
 ---
 
-## Phase 2: 連線 + 資料庫 ← 目前
+## Phase 2: 連線 + 資料庫 ← 已實作待驗收
 
 **一句話**：多人同時在線，房間狀態持久化
 
@@ -35,13 +35,13 @@
 
 ### Checklist
 
-- [ ] 設定 PostgreSQL（Docker Compose）
-- [ ] 設定 Prisma Schema（Room, Player）
-- [ ] 建立 Socket.io 連線
-- [ ] 以 `instance_id` 作為 Room ID
-- [ ] 用戶連線時寫入 DB 並加入房間
-- [ ] 廣播房間內用戶列表
-- [ ] 前端顯示所有在線用戶
+- [x] 設定 PostgreSQL（Kamal Accessory）
+- [x] 設定 Prisma Schema（Room, Player）
+- [x] 建立 Socket.io 連線
+- [x] 以 `instance_id` 作為 Room ID
+- [x] 用戶連線時寫入 DB 並加入房間
+- [x] 廣播房間內用戶列表
+- [x] 前端顯示所有在線用戶
 
 ---
 

@@ -36,6 +36,7 @@ FROM build-shared AS build-backend
 WORKDIR /app
 
 COPY packages/backend ./packages/backend
+RUN pnpm --filter backend exec prisma generate
 RUN pnpm --filter backend build
 
 # Stage 5: Runtime
@@ -57,6 +58,10 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=build-shared /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build-frontend /app/packages/frontend/dist ./packages/frontend/dist
 COPY --from=build-backend /app/packages/backend/dist ./packages/backend/dist
+
+# 複製 Prisma schema 並生成 client
+COPY packages/backend/prisma ./packages/backend/prisma
+RUN pnpm --filter backend exec prisma generate
 
 ENV NODE_ENV=production
 ENV PORT=3001

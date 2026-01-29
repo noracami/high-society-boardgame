@@ -8,6 +8,10 @@ if (!clientId) {
 
 export const discordSdk = new DiscordSDK(clientId);
 
+export function getInstanceId(): string {
+  return discordSdk.instanceId;
+}
+
 export interface DiscordUser {
   id: string;
   username: string;

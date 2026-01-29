@@ -7,3 +7,34 @@ export interface Player {
   hand: CardValue[];
   spent: number;
 }
+
+// Socket.io 型別
+export interface RoomPlayer {
+  id: string;
+  discordId: string;
+  name: string;
+  avatar: string | null;
+  isOnline: boolean;
+}
+
+export interface RoomState {
+  id: string;
+  instanceId: string;
+  players: RoomPlayer[];
+}
+
+export interface ServerToClientEvents {
+  "room:joined": (state: RoomState) => void;
+  "player:joined": (player: RoomPlayer) => void;
+  "player:left": (playerId: string) => void;
+  error: (message: string) => void;
+}
+
+export interface ClientToServerEvents {
+  // 目前連線時透過 auth 傳遞資訊，暫無額外 client 事件
+}
+
+export interface SocketAuth {
+  token: string;
+  instanceId: string;
+}

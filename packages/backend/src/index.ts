@@ -1,7 +1,9 @@
 import dotenv from "dotenv";
 import path from "path";
+import { createServer } from "http";
 import express from "express";
 import cors from "cors";
+import { initSocketServer } from "./socket";
 
 // 載入 root 的 .env（development 時需要）
 if (process.env.NODE_ENV !== "production") {
@@ -9,7 +11,11 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 3001;
+
+// 初始化 Socket.io
+initSocketServer(httpServer);
 
 // CSP Middleware - 允許 Discord iframe 嵌入
 app.use((req, res, next) => {
@@ -87,6 +93,6 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
 });
