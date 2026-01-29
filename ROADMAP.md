@@ -8,7 +8,7 @@
 
 ---
 
-## Phase 1: 骨架 ← 目前
+## Phase 1: 骨架 ✅ 完成
 
 **一句話**：Discord 內打開，看到自己是誰
 
@@ -18,14 +18,14 @@
 
 ### Checklist
 
-- [ ] Activity 可在 Discord 內正常開啟
-- [ ] 前端取得 Discord authorization code
-- [ ] 後端用 code 換取 access token
-- [ ] 前端顯示當前用戶名稱
+- [x] Activity 可在 Discord 內正常開啟
+- [x] 前端取得 Discord authorization code
+- [x] 後端用 code 換取 access token
+- [x] 前端顯示當前用戶名稱
 
 ---
 
-## Phase 2: 連線 + 資料庫
+## Phase 2: 連線 + 資料庫 ← 目前
 
 **一句話**：多人同時在線，房間狀態持久化
 
@@ -174,4 +174,4 @@ localStorage.removeItem('pendingBid')
 
 ## CI/CD 改進（待規劃）
 
-- [ ] Workflow 觸發範圍優化：文件變更（*.md）不應觸發 deploy workflow
+- [x] Workflow 觸發範圍優化：文件變更（*.md）不應觸發 deploy workflow

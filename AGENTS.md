@@ -10,14 +10,14 @@ This file provides guidance to AI coding agents working with this repository.
 
 > 完整 Roadmap 請參考 [ROADMAP.md](./ROADMAP.md)
 
-**Phase 1: 骨架** ← 目前
+**Phase 2: 連線 + 資料庫** ← 目前
 
-目標：Discord 內打開，看到自己是誰
+目標：多人同時在線，房間狀態持久化
 
-- [ ] Activity 可在 Discord 內正常開啟
-- [ ] 前端取得 Discord authorization code
-- [ ] 後端用 code 換取 access token
-- [ ] 前端顯示當前用戶名稱
+- [ ] 設定 PostgreSQL（Docker Compose）
+- [ ] 建立 Socket.io 連線
+- [ ] 以 `instance_id` 作為 Room ID
+- [ ] 前端顯示所有在線用戶
 
 ## 開發指令
 
