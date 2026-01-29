@@ -25,6 +25,7 @@ registry:
 env:
   clear:
     NODE_ENV: production
+    DATABASE_URL: postgresql://postgres:NGl3VumgOD8hAWLuLYM4ADou@high-society-db:5432/high_society
   secret:
     - DISCORD_CLIENT_ID
     - DISCORD_CLIENT_SECRET
@@ -35,3 +36,15 @@ ssh:
 builder:
   arch: arm64
   remote: false
+
+accessories:
+  db:
+    image: postgres:16-alpine
+    host: <%= ENV['KAMAL_HOST'] %>
+    env:
+      clear:
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: NGl3VumgOD8hAWLuLYM4ADou
+        POSTGRES_DB: high_society
+    directories:
+      - data:/var/lib/postgresql/data
