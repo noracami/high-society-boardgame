@@ -4,7 +4,7 @@ import type { RoomState, RoomPlayer, RoomStatus, PlayerRole } from "@high-societ
 const prisma = new PrismaClient();
 
 const MAX_PLAYERS = 5;
-const MIN_PLAYERS = 4;
+const MIN_PLAYERS = 2; // TODO: 改回 4（正式遊戲規則）
 
 export interface DiscordUser {
   id: string;

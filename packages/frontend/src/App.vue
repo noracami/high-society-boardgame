@@ -36,7 +36,7 @@ const isRoomFull = computed(() => playerCount.value >= 5);
 
 const canStartGame = computed(() => {
   if (roomStatus.value !== "lobby") return false;
-  if (playerCount.value < 4 || playerCount.value > 5) return false;
+  if (playerCount.value < 2 || playerCount.value > 5) return false; // TODO: 改回 4（正式遊戲規則）
   if (!activePlayers.value.every((p) => p.isReady)) return false;
   if (!activePlayers.value.every((p) => p.isOnline)) return false;
   return true;
@@ -190,7 +190,7 @@ onUnmounted(() => {
 
         <!-- 開始遊戲條件提示 -->
         <div v-if="isPlayer && isReady && !canStartGame" class="start-hint">
-          <p v-if="playerCount < 4">需要至少 4 位玩家</p>
+          <p v-if="playerCount < 2">需要至少 2 位玩家</p>
           <p v-else-if="!activePlayers.every((p) => p.isReady)">等待所有玩家準備</p>
           <p v-else-if="!activePlayers.every((p) => p.isOnline)">有玩家離線中</p>
         </div>
