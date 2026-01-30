@@ -8,6 +8,69 @@ export interface Player {
   spent: number;
 }
 
+// 拍賣牌型別
+export type AuctionCardType = "luxury" | "zero" | "penalty" | "multiplier";
+export type AuctionType = "forward" | "reverse";
+
+export interface AuctionCard {
+  id: string;
+  type: AuctionCardType;
+  value: number; // 1-10 for luxury, 0 for zero, -5 for penalty, 2 or 0.5 for multiplier
+  auctionType: AuctionType;
+}
+
+// 玩家遊戲狀態
+export interface PlayerGameState {
+  hand: CardValue[];
+  wonCards: AuctionCard[];
+  spentTotal: number;
+}
+
+// 其他玩家的公開資訊（隱藏手牌內容）
+export interface PublicPlayerGameState {
+  handCount: number;
+  wonCards: AuctionCard[];
+  spentTotal: number;
+}
+
+// 遊戲狀態
+export interface GameState {
+  deckCount: number; // 剩餘牌數（不揭露內容）
+  currentCard: AuctionCard | null;
+  discardPile: AuctionCard[];
+  turnOrder: string[];
+  currentPlayerIndex: number;
+  myState: PlayerGameState; // 自己的完整狀態
+  otherPlayers: Record<string, PublicPlayerGameState>; // 其他玩家的公開狀態
+}
+
+// 常數
+export const INITIAL_HAND: CardValue[] = [1, 2, 3, 4, 6, 8, 10, 12, 15, 20, 25];
+
+export const DECK_CARDS: Omit<AuctionCard, "id">[] = [
+  // 奢侈品 1-10（正向拍賣）
+  { type: "luxury", value: 1, auctionType: "forward" },
+  { type: "luxury", value: 2, auctionType: "forward" },
+  { type: "luxury", value: 3, auctionType: "forward" },
+  { type: "luxury", value: 4, auctionType: "forward" },
+  { type: "luxury", value: 5, auctionType: "forward" },
+  { type: "luxury", value: 6, auctionType: "forward" },
+  { type: "luxury", value: 7, auctionType: "forward" },
+  { type: "luxury", value: 8, auctionType: "forward" },
+  { type: "luxury", value: 9, auctionType: "forward" },
+  { type: "luxury", value: 10, auctionType: "forward" },
+  // 零卡（反向拍賣）
+  { type: "zero", value: 0, auctionType: "reverse" },
+  // 扣分卡（反向拍賣）
+  { type: "penalty", value: -5, auctionType: "reverse" },
+  // 倍率卡 x2（正向拍賣）
+  { type: "multiplier", value: 2, auctionType: "forward" },
+  { type: "multiplier", value: 2, auctionType: "forward" },
+  { type: "multiplier", value: 2, auctionType: "forward" },
+  // 倍率卡 x0.5（反向拍賣）
+  { type: "multiplier", value: 0.5, auctionType: "reverse" },
+];
+
 // Lobby 型別
 export type PlayerRole = "observer" | "player";
 export type RoomStatus = "lobby" | "playing";
@@ -28,6 +91,7 @@ export interface RoomState {
   instanceId: string;
   status: RoomStatus;
   players: RoomPlayer[];
+  gameState: GameState | null;
 }
 
 export interface ServerToClientEvents {
@@ -36,6 +100,8 @@ export interface ServerToClientEvents {
   "player:left": (playerId: string) => void;
   "player:updated": (player: RoomPlayer) => void;
   "room:statusChanged": (status: RoomStatus) => void;
+  "game:started": (gameState: GameState) => void;
+  "game:cardRevealed": (card: AuctionCard) => void;
   error: (message: string) => void;
 }
 

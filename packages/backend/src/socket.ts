@@ -16,11 +16,13 @@ import {
   setReady,
   startGame,
 } from "./services/roomService";
+import { toClientGameState } from "./services/gameService";
 
 interface SocketData {
   discordId: string;
   instanceId: string;
   roomId: string;
+  playerId: string;
 }
 
 type TypedServer = Server<
@@ -64,6 +66,7 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
     socket.data.roomId = roomId;
 
     const { player } = await joinRoom(roomId, user, auth.nickname);
+    socket.data.playerId = player.id;
 
     socket.join(auth.instanceId);
 
@@ -74,11 +77,11 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
   });
 
   io.on("connection", async (socket: TypedSocket) => {
-    const { instanceId, discordId, roomId } = socket.data;
+    const { instanceId, discordId, roomId, playerId } = socket.data;
 
     console.log(`Player connected: ${discordId} to room ${instanceId}`);
 
-    const roomState = await getRoomState(instanceId);
+    const roomState = await getRoomState(instanceId, playerId);
     if (roomState) {
       socket.emit("room:joined", roomState);
     }
@@ -121,8 +124,18 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
 
     socket.on("lobby:start", async () => {
       const result = await startGame(roomId);
-      if (result.success && result.status) {
+      if (result.success && result.status && result.gameState) {
         io.to(instanceId).emit("room:statusChanged", result.status);
+
+        // 為每位玩家發送專屬視角的遊戲狀態
+        const socketsInRoom = await io.in(instanceId).fetchSockets();
+        for (const s of socketsInRoom) {
+          const viewerPlayerId = s.data.playerId;
+          if (viewerPlayerId && result.gameState.players[viewerPlayerId]) {
+            const clientGameState = toClientGameState(result.gameState, viewerPlayerId);
+            s.emit("game:started", clientGameState);
+          }
+        }
       } else {
         socket.emit("error", result.error || "開始遊戲失敗");
       }

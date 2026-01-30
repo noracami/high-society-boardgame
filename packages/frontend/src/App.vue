@@ -10,13 +10,14 @@ import {
   emitLobbyUnready,
   emitLobbyStart,
 } from "./socket";
-import type { RoomPlayer, RoomStatus } from "@high-society/shared";
+import type { RoomPlayer, RoomStatus, GameState, AuctionCard } from "@high-society/shared";
 
 const user = ref<DiscordUser | null>(null);
 const error = ref<string | null>(null);
 const loading = ref(true);
 const players = ref<RoomPlayer[]>([]);
 const roomStatus = ref<RoomStatus>("lobby");
+const gameState = ref<GameState | null>(null);
 
 const currentPlayer = computed(() =>
   players.value.find((p) => p.discordId === user.value?.id)
@@ -41,6 +42,47 @@ const canStartGame = computed(() => {
   if (!activePlayers.value.every((p) => p.isOnline)) return false;
   return true;
 });
+
+// 遊戲相關計算屬性
+const currentTurnPlayer = computed(() => {
+  if (!gameState.value) return null;
+  const playerId = gameState.value.turnOrder[gameState.value.currentPlayerIndex];
+  return players.value.find((p) => p.id === playerId);
+});
+
+function getCardDisplayName(card: AuctionCard): string {
+  switch (card.type) {
+    case "luxury":
+      return `${card.value}`;
+    case "zero":
+      return "0";
+    case "penalty":
+      return "-5";
+    case "multiplier":
+      return card.value === 2 ? "x2" : "x½";
+    default:
+      return "?";
+  }
+}
+
+function getCardTypeLabel(card: AuctionCard): string {
+  switch (card.type) {
+    case "luxury":
+      return "奢侈品";
+    case "zero":
+      return "零卡";
+    case "penalty":
+      return "扣分卡";
+    case "multiplier":
+      return "倍率卡";
+    default:
+      return "";
+  }
+}
+
+function getAuctionTypeLabel(card: AuctionCard): string {
+  return card.auctionType === "forward" ? "正向" : "反向";
+}
 
 function handleJoinGame() {
   emitLobbyJoin();
@@ -72,6 +114,7 @@ onMounted(async () => {
       onRoomJoined: (state) => {
         players.value = state.players;
         roomStatus.value = state.status;
+        gameState.value = state.gameState;
       },
       onPlayerJoined: (player) => {
         const index = players.value.findIndex((p) => p.id === player.id);
@@ -95,6 +138,14 @@ onMounted(async () => {
       },
       onRoomStatusChanged: (status) => {
         roomStatus.value = status;
+      },
+      onGameStarted: (state) => {
+        gameState.value = state;
+      },
+      onCardRevealed: (card) => {
+        if (gameState.value) {
+          gameState.value.currentCard = card;
+        }
       },
       onError: (message) => {
         error.value = message;
@@ -126,9 +177,69 @@ onUnmounted(() => {
 
     <template v-else-if="user">
       <!-- 遊戲進行中畫面 -->
-      <div v-if="roomStatus === 'playing'" class="game-screen">
-        <h2>遊戲開始！</h2>
-        <p>遊戲功能開發中...</p>
+      <div v-if="roomStatus === 'playing' && gameState" class="game-screen">
+        <!-- 遊戲資訊列 -->
+        <div class="game-info-bar">
+          <span>牌組剩餘: {{ gameState.deckCount }}</span>
+          <span v-if="currentTurnPlayer">輪到: {{ currentTurnPlayer.name }}</span>
+        </div>
+
+        <!-- 當前拍賣牌 -->
+        <div class="auction-area">
+          <h2>當前拍賣牌</h2>
+          <div v-if="gameState.currentCard" class="auction-card" :class="gameState.currentCard.type">
+            <div class="card-value">{{ getCardDisplayName(gameState.currentCard) }}</div>
+            <div class="card-type">{{ getCardTypeLabel(gameState.currentCard) }}</div>
+            <div class="card-auction-type" :class="gameState.currentCard.auctionType">
+              {{ getAuctionTypeLabel(gameState.currentCard) }}拍賣
+            </div>
+          </div>
+          <p v-else class="no-card">沒有拍賣牌</p>
+        </div>
+
+        <!-- 玩家資訊區 -->
+        <div class="players-info">
+          <h3>玩家狀態</h3>
+          <div class="player-cards">
+            <div
+              v-for="player in activePlayers"
+              :key="player.id"
+              class="player-info-card"
+              :class="{ 'is-current': gameState.turnOrder[gameState.currentPlayerIndex] === player.id }"
+            >
+              <div class="player-info-name">
+                {{ player.name }}
+                <span v-if="player.discordId === user?.id">(你)</span>
+              </div>
+              <div class="player-info-stats">
+                <template v-if="player.discordId === user?.id">
+                  <span>手牌: {{ gameState.myState.hand.length }}張</span>
+                  |
+                  <span>已花費: {{ gameState.myState.spentTotal }}</span>
+                </template>
+                <template v-else-if="gameState.otherPlayers[player.id]">
+                  <span>手牌: {{ gameState.otherPlayers[player.id]!.handCount }}張</span>
+                  |
+                  <span>已花費: {{ gameState.otherPlayers[player.id]!.spentTotal }}</span>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 我的手牌 -->
+        <div class="my-hand">
+          <h3>我的手牌</h3>
+          <div class="hand-cards">
+            <div
+              v-for="card in gameState.myState.hand"
+              :key="card"
+              class="hand-card"
+            >
+              {{ card }}
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Lobby 畫面 -->
@@ -375,13 +486,170 @@ h1 {
 
 .game-screen {
   text-align: center;
-  padding: 2rem;
+  padding: 1.5rem;
   background-color: #2a2a2a;
   border-radius: 8px;
 }
 
-.game-screen h2 {
-  color: #69db7c;
+.game-info-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background-color: #1a1a1a;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+  font-size: 0.9em;
+  color: #adb5bd;
+}
+
+.auction-area {
+  margin-bottom: 1.5rem;
+}
+
+.auction-area h2 {
+  font-size: 1.1rem;
+  color: #adb5bd;
   margin-bottom: 1rem;
+}
+
+.auction-card {
+  display: inline-block;
+  width: 120px;
+  padding: 1.5rem 1rem;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #3a3a3a, #2a2a2a);
+  border: 3px solid #4a4a4a;
+}
+
+.auction-card.luxury {
+  border-color: #fab005;
+  background: linear-gradient(145deg, #4a3a0a, #2a2a2a);
+}
+
+.auction-card.zero {
+  border-color: #868e96;
+  background: linear-gradient(145deg, #3a3a3a, #2a2a2a);
+}
+
+.auction-card.penalty {
+  border-color: #ff6b6b;
+  background: linear-gradient(145deg, #4a2a2a, #2a2a2a);
+}
+
+.auction-card.multiplier {
+  border-color: #69db7c;
+  background: linear-gradient(145deg, #2a4a2a, #2a2a2a);
+}
+
+.card-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #fff;
+}
+
+.card-type {
+  font-size: 0.85em;
+  color: #adb5bd;
+  margin-top: 0.5rem;
+}
+
+.card-auction-type {
+  font-size: 0.75em;
+  margin-top: 0.5rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.card-auction-type.forward {
+  background-color: #228be6;
+  color: #fff;
+}
+
+.card-auction-type.reverse {
+  background-color: #f03e3e;
+  color: #fff;
+}
+
+.no-card {
+  color: #868e96;
+  font-style: italic;
+}
+
+.players-info {
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.players-info h3 {
+  font-size: 1rem;
+  color: #adb5bd;
+  margin-bottom: 0.75rem;
+}
+
+.player-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.player-info-card {
+  flex: 1;
+  min-width: 140px;
+  padding: 0.75rem;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  border: 2px solid transparent;
+}
+
+.player-info-card.is-current {
+  border-color: #fab005;
+}
+
+.player-info-name {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.player-info-stats {
+  font-size: 0.8em;
+  color: #adb5bd;
+}
+
+.my-hand {
+  border-top: 1px solid #3a3a3a;
+  padding-top: 1rem;
+}
+
+.my-hand h3 {
+  font-size: 1rem;
+  color: #adb5bd;
+  margin-bottom: 0.75rem;
+}
+
+.hand-cards {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.hand-card {
+  width: 50px;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #364fc7, #1e3a8a);
+  border-radius: 8px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.hand-card:hover {
+  transform: translateY(-5px);
 }
 </style>

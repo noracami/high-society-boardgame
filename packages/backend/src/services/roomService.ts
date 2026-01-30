@@ -1,5 +1,6 @@
 import { PrismaClient, PlayerRole as PrismaPlayerRole, RoomStatus as PrismaRoomStatus } from "@prisma/client";
-import type { RoomState, RoomPlayer, RoomStatus, PlayerRole } from "@high-society/shared";
+import type { RoomState, RoomPlayer, RoomStatus, PlayerRole, GameState } from "@high-society/shared";
+import { InternalGameState, toClientGameState, createInitialGameState } from "./gameService";
 
 const prisma = new PrismaClient();
 
@@ -106,7 +107,10 @@ export async function leaveRoom(
   return player.id;
 }
 
-export async function getRoomState(instanceId: string): Promise<RoomState | null> {
+export async function getRoomState(
+  instanceId: string,
+  viewerPlayerId?: string
+): Promise<RoomState | null> {
   const room = await prisma.room.findUnique({
     where: { instanceId },
     include: { players: true },
@@ -114,12 +118,39 @@ export async function getRoomState(instanceId: string): Promise<RoomState | null
 
   if (!room) return null;
 
+  let gameState: GameState | null = null;
+  if (room.gameState && viewerPlayerId) {
+    const internalState = room.gameState as unknown as InternalGameState;
+    gameState = toClientGameState(internalState, viewerPlayerId);
+  }
+
   return {
     id: room.id,
     instanceId: room.instanceId,
     status: room.status as RoomStatus,
     players: room.players.map(toRoomPlayer),
+    gameState,
   };
+}
+
+export async function getInternalGameState(roomId: string): Promise<InternalGameState | null> {
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    select: { gameState: true },
+  });
+
+  if (!room?.gameState) return null;
+  return room.gameState as unknown as InternalGameState;
+}
+
+export async function saveGameState(
+  roomId: string,
+  gameState: InternalGameState
+): Promise<void> {
+  await prisma.room.update({
+    where: { id: roomId },
+    data: { gameState: gameState as unknown as object },
+  });
 }
 
 export async function joinLobby(
@@ -263,7 +294,7 @@ export async function canStartGame(roomId: string): Promise<{ canStart: boolean;
 
 export async function startGame(
   roomId: string
-): Promise<{ success: boolean; status?: RoomStatus; error?: string }> {
+): Promise<{ success: boolean; status?: RoomStatus; gameState?: InternalGameState; error?: string }> {
   return await prisma.$transaction(async (tx) => {
     const room = await tx.room.findUnique({
       where: { id: roomId },
@@ -295,12 +326,19 @@ export async function startGame(
       return { success: false, error: "有玩家離線中" };
     }
 
+    // 初始化遊戲狀態
+    const playerIds = activePlayers.map((p) => p.id);
+    const gameState = createInitialGameState(playerIds);
+
     await tx.room.update({
       where: { id: roomId },
-      data: { status: "playing" },
+      data: {
+        status: "playing",
+        gameState: gameState as unknown as object,
+      },
     });
 
-    return { success: true, status: "playing" };
+    return { success: true, status: "playing", gameState };
   });
 }
 
