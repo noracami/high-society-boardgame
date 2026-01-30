@@ -59,13 +59,12 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
     socket.data.instanceId = auth.instanceId;
     socket.data.roomId = roomId;
 
-    const { player, isNew } = await joinRoom(roomId, user, auth.nickname);
+    const { player } = await joinRoom(roomId, user, auth.nickname);
 
     socket.join(auth.instanceId);
 
-    if (isNew) {
-      socket.to(auth.instanceId).emit("player:joined", player);
-    }
+    // 廣播給房間內其他人：有玩家加入/上線
+    socket.to(auth.instanceId).emit("player:joined", player);
 
     next();
   });
