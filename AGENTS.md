@@ -10,9 +10,9 @@ This file provides guidance to AI coding agents working with this repository.
 
 > 完整 Roadmap 請參考 [ROADMAP.md](./ROADMAP.md)
 
-**Phase 2 補充優化** ← 目前
+**Phase 3: Lobby** ← 下一階段
 
-- [ ] 玩家名稱優先顯示伺服器別名（Guild Nickname）
+> Phase 2 已完成（含補充優化）
 
 ## 開發指令
 
