@@ -10,14 +10,9 @@ This file provides guidance to AI coding agents working with this repository.
 
 > 完整 Roadmap 請參考 [ROADMAP.md](./ROADMAP.md)
 
-**Phase 2: 連線 + 資料庫** ← 已實作待驗收
+**Phase 2 補充優化** ← 目前
 
-目標：多人同時在線，房間狀態持久化
-
-- [x] 設定 PostgreSQL（Kamal Accessory）
-- [x] 建立 Socket.io 連線
-- [x] 以 `instance_id` 作為 Room ID
-- [x] 前端顯示所有在線用戶
+- [ ] 玩家名稱優先顯示伺服器別名（Guild Nickname）
 
 ## 開發指令
 

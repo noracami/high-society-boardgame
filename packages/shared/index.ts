@@ -37,4 +37,5 @@ export interface ClientToServerEvents {
 export interface SocketAuth {
   token: string;
   instanceId: string;
+  nickname: string | null;
 }

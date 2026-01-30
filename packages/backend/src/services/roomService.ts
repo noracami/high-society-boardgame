@@ -37,9 +37,11 @@ export async function findOrCreateRoom(instanceId: string): Promise<string> {
 
 export async function joinRoom(
   roomId: string,
-  user: DiscordUser
+  user: DiscordUser,
+  nickname: string | null
 ): Promise<{ player: RoomPlayer; isNew: boolean }> {
-  const displayName = user.global_name || user.username;
+  // 優先順序：伺服器別名 > 帳號顯示名稱 > 帳號名稱
+  const displayName = nickname || user.global_name || user.username;
 
   const existing = await prisma.player.findUnique({
     where: {

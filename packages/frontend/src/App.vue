@@ -14,7 +14,8 @@ onMounted(async () => {
     const result = await setupDiscordSdk();
     user.value = result.user;
 
-    connectSocket(result.accessToken, getInstanceId(), {
+    const nickname = result.guildMember?.nick ?? null;
+    connectSocket(result.accessToken, getInstanceId(), nickname, {
       onRoomJoined: (state) => {
         players.value = state.players;
       },

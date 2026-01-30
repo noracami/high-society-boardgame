@@ -20,6 +20,7 @@ export interface SocketCallbacks {
 export function connectSocket(
   token: string,
   instanceId: string,
+  nickname: string | null,
   callbacks: SocketCallbacks
 ): TypedSocket {
   if (socket?.connected) {
@@ -27,7 +28,7 @@ export function connectSocket(
   }
 
   socket = io({
-    auth: { token, instanceId },
+    auth: { token, instanceId, nickname },
   });
 
   socket.on("room:joined", callbacks.onRoomJoined);

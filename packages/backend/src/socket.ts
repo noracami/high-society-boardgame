@@ -59,7 +59,7 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
     socket.data.instanceId = auth.instanceId;
     socket.data.roomId = roomId;
 
-    const { player, isNew } = await joinRoom(roomId, user);
+    const { player, isNew } = await joinRoom(roomId, user, auth.nickname);
 
     socket.join(auth.instanceId);
 
