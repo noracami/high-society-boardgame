@@ -4,6 +4,7 @@ import type {
   ClientToServerEvents,
   RoomState,
   RoomPlayer,
+  RoomStatus,
 } from "@high-society/shared";
 
 type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -14,6 +15,8 @@ export interface SocketCallbacks {
   onRoomJoined: (state: RoomState) => void;
   onPlayerJoined: (player: RoomPlayer) => void;
   onPlayerLeft: (playerId: string) => void;
+  onPlayerUpdated: (player: RoomPlayer) => void;
+  onRoomStatusChanged: (status: RoomStatus) => void;
   onError: (message: string) => void;
 }
 
@@ -34,6 +37,8 @@ export function connectSocket(
   socket.on("room:joined", callbacks.onRoomJoined);
   socket.on("player:joined", callbacks.onPlayerJoined);
   socket.on("player:left", callbacks.onPlayerLeft);
+  socket.on("player:updated", callbacks.onPlayerUpdated);
+  socket.on("room:statusChanged", callbacks.onRoomStatusChanged);
   socket.on("error", callbacks.onError);
 
   socket.on("connect_error", (err) => {
@@ -49,4 +54,24 @@ export function disconnectSocket(): void {
     socket.disconnect();
     socket = null;
   }
+}
+
+export function emitLobbyJoin(): void {
+  socket?.emit("lobby:join");
+}
+
+export function emitLobbyLeave(): void {
+  socket?.emit("lobby:leave");
+}
+
+export function emitLobbyReady(): void {
+  socket?.emit("lobby:ready");
+}
+
+export function emitLobbyUnready(): void {
+  socket?.emit("lobby:unready");
+}
+
+export function emitLobbyStart(): void {
+  socket?.emit("lobby:start");
 }

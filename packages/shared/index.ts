@@ -8,6 +8,10 @@ export interface Player {
   spent: number;
 }
 
+// Lobby 型別
+export type PlayerRole = "observer" | "player";
+export type RoomStatus = "lobby" | "playing";
+
 // Socket.io 型別
 export interface RoomPlayer {
   id: string;
@@ -15,11 +19,14 @@ export interface RoomPlayer {
   name: string;
   avatar: string | null;
   isOnline: boolean;
+  role: PlayerRole;
+  isReady: boolean;
 }
 
 export interface RoomState {
   id: string;
   instanceId: string;
+  status: RoomStatus;
   players: RoomPlayer[];
 }
 
@@ -27,11 +34,17 @@ export interface ServerToClientEvents {
   "room:joined": (state: RoomState) => void;
   "player:joined": (player: RoomPlayer) => void;
   "player:left": (playerId: string) => void;
+  "player:updated": (player: RoomPlayer) => void;
+  "room:statusChanged": (status: RoomStatus) => void;
   error: (message: string) => void;
 }
 
 export interface ClientToServerEvents {
-  // 目前連線時透過 auth 傳遞資訊，暫無額外 client 事件
+  "lobby:join": () => void;
+  "lobby:leave": () => void;
+  "lobby:ready": () => void;
+  "lobby:unready": () => void;
+  "lobby:start": () => void;
 }
 
 export interface SocketAuth {

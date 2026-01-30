@@ -11,6 +11,10 @@ import {
   joinRoom,
   leaveRoom,
   getRoomState,
+  joinLobby,
+  leaveLobby,
+  setReady,
+  startGame,
 } from "./services/roomService";
 
 interface SocketData {
@@ -70,7 +74,7 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
   });
 
   io.on("connection", async (socket: TypedSocket) => {
-    const { instanceId, discordId } = socket.data;
+    const { instanceId, discordId, roomId } = socket.data;
 
     console.log(`Player connected: ${discordId} to room ${instanceId}`);
 
@@ -79,10 +83,55 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
       socket.emit("room:joined", roomState);
     }
 
+    socket.on("lobby:join", async () => {
+      const result = await joinLobby(roomId, discordId);
+      if (result.success && result.player) {
+        io.to(instanceId).emit("player:updated", result.player);
+      } else {
+        socket.emit("error", result.error || "加入失敗");
+      }
+    });
+
+    socket.on("lobby:leave", async () => {
+      const result = await leaveLobby(roomId, discordId);
+      if (result.success && result.player) {
+        io.to(instanceId).emit("player:updated", result.player);
+      } else {
+        socket.emit("error", result.error || "離開失敗");
+      }
+    });
+
+    socket.on("lobby:ready", async () => {
+      const result = await setReady(roomId, discordId, true);
+      if (result.success && result.player) {
+        io.to(instanceId).emit("player:updated", result.player);
+      } else {
+        socket.emit("error", result.error || "準備失敗");
+      }
+    });
+
+    socket.on("lobby:unready", async () => {
+      const result = await setReady(roomId, discordId, false);
+      if (result.success && result.player) {
+        io.to(instanceId).emit("player:updated", result.player);
+      } else {
+        socket.emit("error", result.error || "取消準備失敗");
+      }
+    });
+
+    socket.on("lobby:start", async () => {
+      const result = await startGame(roomId);
+      if (result.success && result.status) {
+        io.to(instanceId).emit("room:statusChanged", result.status);
+      } else {
+        socket.emit("error", result.error || "開始遊戲失敗");
+      }
+    });
+
     socket.on("disconnect", async () => {
       console.log(`Player disconnected: ${discordId} from room ${instanceId}`);
 
-      const playerId = await leaveRoom(socket.data.roomId, discordId);
+      const playerId = await leaveRoom(roomId, discordId);
       if (playerId) {
         socket.to(instanceId).emit("player:left", playerId);
       }
