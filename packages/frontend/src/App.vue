@@ -9,8 +9,10 @@ import {
   emitLobbyReady,
   emitLobbyUnready,
   emitLobbyStart,
+  emitBid,
+  emitPass,
 } from "./socket";
-import type { RoomPlayer, RoomStatus, GameState, AuctionCard } from "@high-society/shared";
+import type { RoomPlayer, RoomStatus, GameState, AuctionCard, AuctionResult, CardValue } from "@high-society/shared";
 
 const user = ref<DiscordUser | null>(null);
 const error = ref<string | null>(null);
@@ -18,6 +20,8 @@ const loading = ref(true);
 const players = ref<RoomPlayer[]>([]);
 const roomStatus = ref<RoomStatus>("lobby");
 const gameState = ref<GameState | null>(null);
+const selectedCards = ref<CardValue[]>([]);
+const auctionResult = ref<AuctionResult | null>(null);
 
 const currentPlayer = computed(() =>
   players.value.find((p) => p.discordId === user.value?.id)
@@ -43,11 +47,45 @@ const canStartGame = computed(() => {
   return true;
 });
 
-// 遊戲相關計算屬性
-const currentTurnPlayer = computed(() => {
-  if (!gameState.value) return null;
-  const playerId = gameState.value.turnOrder[gameState.value.currentPlayerIndex];
-  return players.value.find((p) => p.id === playerId);
+// 拍賣相關計算屬性
+const isInAuction = computed(() => {
+  return gameState.value?.auctionRound !== null && gameState.value?.auctionRound !== undefined;
+});
+
+const isMyTurn = computed(() => {
+  return gameState.value?.auctionRound?.isMyTurn ?? false;
+});
+
+const currentHighest = computed(() => {
+  return gameState.value?.auctionRound?.currentHighest ?? 0;
+});
+
+const myCurrentBidTotal = computed(() => {
+  return gameState.value?.auctionRound?.myBid?.total ?? 0;
+});
+
+const selectedTotal = computed(() => {
+  return selectedCards.value.reduce((sum, card) => sum + card, 0);
+});
+
+const newBidTotal = computed(() => {
+  return myCurrentBidTotal.value + selectedTotal.value;
+});
+
+const canBid = computed(() => {
+  if (!isMyTurn.value) return false;
+  if (selectedCards.value.length === 0) return false;
+  return newBidTotal.value > currentHighest.value;
+});
+
+const canPass = computed(() => {
+  return isMyTurn.value;
+});
+
+const currentBidder = computed(() => {
+  if (!gameState.value?.auctionRound) return null;
+  const bidderId = gameState.value.auctionRound.currentBidderId;
+  return players.value.find((p) => p.id === bidderId);
 });
 
 function getCardDisplayName(card: AuctionCard): string {
@@ -104,6 +142,40 @@ function handleStartGame() {
   emitLobbyStart();
 }
 
+function toggleCardSelection(card: CardValue) {
+  const index = selectedCards.value.indexOf(card);
+  if (index >= 0) {
+    selectedCards.value.splice(index, 1);
+  } else {
+    selectedCards.value.push(card);
+  }
+}
+
+function isCardSelected(card: CardValue): boolean {
+  return selectedCards.value.includes(card);
+}
+
+function handleBid() {
+  if (!canBid.value) return;
+  emitBid(selectedCards.value);
+  selectedCards.value = [];
+}
+
+function handlePass() {
+  if (!canPass.value) return;
+  emitPass();
+  selectedCards.value = [];
+}
+
+function clearAuctionResult() {
+  auctionResult.value = null;
+}
+
+function getPlayerName(playerId: string): string {
+  const player = players.value.find((p) => p.id === playerId);
+  return player?.name ?? "未知玩家";
+}
+
 onMounted(async () => {
   try {
     const result = await setupDiscordSdk();
@@ -147,6 +219,16 @@ onMounted(async () => {
           gameState.value.currentCard = card;
         }
       },
+      onGameStateUpdated: (state) => {
+        gameState.value = state;
+      },
+      onAuctionEnded: (result) => {
+        auctionResult.value = result;
+        // 3 秒後自動清除結算通知
+        setTimeout(() => {
+          auctionResult.value = null;
+        }, 3000);
+      },
       onError: (message) => {
         error.value = message;
       },
@@ -178,10 +260,23 @@ onUnmounted(() => {
     <template v-else-if="user">
       <!-- 遊戲進行中畫面 -->
       <div v-if="roomStatus === 'playing' && gameState" class="game-screen">
+        <!-- 拍賣結算通知 -->
+        <div v-if="auctionResult" class="auction-result-overlay" @click="clearAuctionResult">
+          <div class="auction-result-modal">
+            <h3>拍賣結束</h3>
+            <p><strong>{{ getPlayerName(auctionResult.winnerId) }}</strong> 得標</p>
+            <p>獲得：{{ getCardDisplayName(auctionResult.card) }} {{ getCardTypeLabel(auctionResult.card) }}</p>
+            <p v-if="auctionResult.spentTotal > 0">
+              花費：{{ auctionResult.spentTotal }}（{{ auctionResult.spentCards.join(', ') }}）
+            </p>
+            <p v-else>免費獲得</p>
+          </div>
+        </div>
+
         <!-- 遊戲資訊列 -->
         <div class="game-info-bar">
           <span>牌組剩餘: {{ gameState.deckCount }}</span>
-          <span v-if="currentTurnPlayer">輪到: {{ currentTurnPlayer.name }}</span>
+          <span v-if="currentBidder">輪到: {{ currentBidder.name }}</span>
         </div>
 
         <!-- 當前拍賣牌 -->
@@ -197,6 +292,18 @@ onUnmounted(() => {
           <p v-else class="no-card">沒有拍賣牌</p>
         </div>
 
+        <!-- 拍賣狀態區 -->
+        <div v-if="isInAuction && gameState.auctionRound" class="auction-status">
+          <div class="auction-status-info">
+            <span class="highest-bid">當前最高出價: {{ currentHighest }}</span>
+            <span v-if="isMyTurn" class="my-turn-indicator">輪到你了</span>
+          </div>
+          <div v-if="gameState.auctionRound.myBid && gameState.auctionRound.myBid.total > 0" class="my-bid-info">
+            你已出價: {{ gameState.auctionRound.myBid.total }}
+            ({{ gameState.auctionRound.myBid.cards.join(', ') }})
+          </div>
+        </div>
+
         <!-- 玩家資訊區 -->
         <div class="players-info">
           <h3>玩家狀態</h3>
@@ -205,11 +312,15 @@ onUnmounted(() => {
               v-for="player in activePlayers"
               :key="player.id"
               class="player-info-card"
-              :class="{ 'is-current': gameState.turnOrder[gameState.currentPlayerIndex] === player.id }"
+              :class="{
+                'is-current': gameState.auctionRound?.currentBidderId === player.id,
+                'has-passed': gameState.auctionRound && !gameState.auctionRound.activePlayers.includes(player.id)
+              }"
             >
               <div class="player-info-name">
                 {{ player.name }}
                 <span v-if="player.discordId === user?.id">(你)</span>
+                <span v-if="gameState.auctionRound && !gameState.auctionRound.activePlayers.includes(player.id)" class="passed-badge">已 Pass</span>
               </div>
               <div class="player-info-stats">
                 <template v-if="player.discordId === user?.id">
@@ -223,21 +334,57 @@ onUnmounted(() => {
                   <span>已花費: {{ gameState.otherPlayers[player.id]!.spentTotal }}</span>
                 </template>
               </div>
+              <!-- 顯示該玩家的出價 -->
+              <div v-if="gameState.auctionRound?.otherBids[player.id]" class="player-bid-info">
+                出價: {{ gameState.auctionRound.otherBids[player.id]!.total }}
+                ({{ gameState.auctionRound.otherBids[player.id]!.cardCount }}張牌)
+              </div>
             </div>
           </div>
         </div>
 
         <!-- 我的手牌 -->
         <div class="my-hand">
-          <h3>我的手牌</h3>
+          <h3>我的手牌 <span v-if="selectedCards.length > 0">(已選: {{ selectedTotal }})</span></h3>
           <div class="hand-cards">
             <div
-              v-for="card in gameState.myState.hand"
-              :key="card"
+              v-for="(card, index) in gameState.myState.hand"
+              :key="`${card}-${index}`"
               class="hand-card"
+              :class="{ selected: isCardSelected(card) }"
+              @click="toggleCardSelection(card)"
             >
               {{ card }}
             </div>
+          </div>
+
+          <!-- 出價操作區 -->
+          <div v-if="isInAuction" class="bid-actions">
+            <div class="bid-preview">
+              <span v-if="selectedCards.length > 0">
+                新出價總額: {{ newBidTotal }}
+                <span v-if="newBidTotal <= currentHighest" class="bid-warning">
+                  (需高於 {{ currentHighest }})
+                </span>
+              </span>
+            </div>
+            <div class="bid-buttons">
+              <button
+                class="btn btn-primary"
+                :disabled="!canBid"
+                @click="handleBid"
+              >
+                出價
+              </button>
+              <button
+                class="btn btn-secondary"
+                :disabled="!canPass"
+                @click="handlePass"
+              >
+                Pass
+              </button>
+            </div>
+            <p v-if="!isMyTurn" class="wait-hint">等待其他玩家...</p>
           </div>
         </div>
       </div>
@@ -606,9 +753,28 @@ h1 {
   border-color: #fab005;
 }
 
+.player-info-card.has-passed {
+  opacity: 0.5;
+}
+
 .player-info-name {
   font-weight: 600;
   margin-bottom: 0.25rem;
+}
+
+.passed-badge {
+  font-size: 0.7em;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  background-color: #868e96;
+  color: #fff;
+  margin-left: 0.25rem;
+}
+
+.player-bid-info {
+  font-size: 0.75em;
+  color: #fab005;
+  margin-top: 0.25rem;
 }
 
 .player-info-stats {
@@ -651,5 +817,128 @@ h1 {
 
 .hand-card:hover {
   transform: translateY(-5px);
+}
+
+.hand-card.selected {
+  transform: translateY(-10px);
+  box-shadow: 0 0 15px rgba(250, 176, 5, 0.6);
+  border: 2px solid #fab005;
+}
+
+.auction-status {
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.auction-status-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.highest-bid {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #fab005;
+}
+
+.my-turn-indicator {
+  background-color: #2f9e44;
+  color: #fff;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-weight: 600;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.my-bid-info {
+  margin-top: 0.5rem;
+  font-size: 0.9em;
+  color: #69db7c;
+}
+
+.bid-actions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #3a3a3a;
+}
+
+.bid-preview {
+  margin-bottom: 0.75rem;
+  font-size: 0.9em;
+  color: #adb5bd;
+}
+
+.bid-warning {
+  color: #ff6b6b;
+}
+
+.bid-buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.wait-hint {
+  margin-top: 0.5rem;
+  font-size: 0.85em;
+  color: #868e96;
+  font-style: italic;
+}
+
+.auction-result-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: pointer;
+}
+
+.auction-result-modal {
+  background-color: #2a2a2a;
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  border: 2px solid #fab005;
+  max-width: 90%;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auction-result-modal h3 {
+  color: #fab005;
+  margin-bottom: 1rem;
+}
+
+.auction-result-modal p {
+  margin: 0.5rem 0;
+  color: #adb5bd;
+}
+
+.auction-result-modal strong {
+  color: #fff;
 }
 </style>

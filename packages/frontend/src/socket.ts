@@ -7,6 +7,8 @@ import type {
   RoomStatus,
   GameState,
   AuctionCard,
+  AuctionResult,
+  CardValue,
 } from "@high-society/shared";
 
 type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -21,6 +23,8 @@ export interface SocketCallbacks {
   onRoomStatusChanged: (status: RoomStatus) => void;
   onGameStarted: (gameState: GameState) => void;
   onCardRevealed: (card: AuctionCard) => void;
+  onGameStateUpdated: (gameState: GameState) => void;
+  onAuctionEnded: (result: AuctionResult) => void;
   onError: (message: string) => void;
 }
 
@@ -45,6 +49,8 @@ export function connectSocket(
   socket.on("room:statusChanged", callbacks.onRoomStatusChanged);
   socket.on("game:started", callbacks.onGameStarted);
   socket.on("game:cardRevealed", callbacks.onCardRevealed);
+  socket.on("game:stateUpdated", callbacks.onGameStateUpdated);
+  socket.on("game:auctionEnded", callbacks.onAuctionEnded);
   socket.on("error", callbacks.onError);
 
   socket.on("connect_error", (err) => {
@@ -80,4 +86,12 @@ export function emitLobbyUnready(): void {
 
 export function emitLobbyStart(): void {
   socket?.emit("lobby:start");
+}
+
+export function emitBid(cards: CardValue[]): void {
+  socket?.emit("game:bid", cards);
+}
+
+export function emitPass(): void {
+  socket?.emit("game:pass");
 }

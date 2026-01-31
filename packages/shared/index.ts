@@ -19,6 +19,28 @@ export interface AuctionCard {
   auctionType: AuctionType;
 }
 
+// 玩家出價資訊
+export interface PlayerBid {
+  playerId: string;
+  cards: CardValue[];
+  total: number;
+}
+
+// 其他玩家出價的公開資訊（隱藏牌面細節）
+export interface PublicPlayerBid {
+  playerId: string;
+  cardCount: number;
+  total: number;
+}
+
+// 拍賣結算結果
+export interface AuctionResult {
+  winnerId: string;
+  card: AuctionCard;
+  spentCards: CardValue[];
+  spentTotal: number;
+}
+
 // 玩家遊戲狀態
 export interface PlayerGameState {
   hand: CardValue[];
@@ -33,6 +55,17 @@ export interface PublicPlayerGameState {
   spentTotal: number;
 }
 
+// 客戶端拍賣輪狀態
+export interface ClientAuctionRoundState {
+  phase: "bidding" | "settling";
+  activePlayers: string[]; // 尚未 Pass 的玩家 ID
+  myBid: PlayerBid | null; // 自己的完整出價資訊
+  otherBids: Record<string, PublicPlayerBid>; // 其他玩家的公開出價資訊
+  currentHighest: number; // 當前最高出價
+  currentBidderId: string; // 當前輪到的玩家 ID
+  isMyTurn: boolean; // 是否輪到自己
+}
+
 // 遊戲狀態
 export interface GameState {
   deckCount: number; // 剩餘牌數（不揭露內容）
@@ -42,6 +75,7 @@ export interface GameState {
   currentPlayerIndex: number;
   myState: PlayerGameState; // 自己的完整狀態
   otherPlayers: Record<string, PublicPlayerGameState>; // 其他玩家的公開狀態
+  auctionRound: ClientAuctionRoundState | null; // 拍賣輪狀態
 }
 
 // 常數
@@ -102,6 +136,8 @@ export interface ServerToClientEvents {
   "room:statusChanged": (status: RoomStatus) => void;
   "game:started": (gameState: GameState) => void;
   "game:cardRevealed": (card: AuctionCard) => void;
+  "game:stateUpdated": (gameState: GameState) => void;
+  "game:auctionEnded": (result: AuctionResult) => void;
   error: (message: string) => void;
 }
 
@@ -111,6 +147,8 @@ export interface ClientToServerEvents {
   "lobby:ready": () => void;
   "lobby:unready": () => void;
   "lobby:start": () => void;
+  "game:bid": (cards: CardValue[]) => void;
+  "game:pass": () => void;
 }
 
 export interface SocketAuth {

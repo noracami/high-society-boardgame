@@ -16,7 +16,8 @@ import {
   setReady,
   startGame,
 } from "./services/roomService";
-import { toClientGameState } from "./services/gameService";
+import { toClientGameState, processBid, processPass } from "./services/gameService";
+import { getInternalGameState, saveGameState } from "./services/roomService";
 
 interface SocketData {
   discordId: string;
@@ -138,6 +139,63 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
         }
       } else {
         socket.emit("error", result.error || "開始遊戲失敗");
+      }
+    });
+
+    socket.on("game:bid", async (cards) => {
+      const gameState = await getInternalGameState(roomId);
+      if (!gameState) {
+        socket.emit("error", "遊戲狀態不存在");
+        return;
+      }
+
+      const result = processBid(gameState, playerId, cards);
+      if (!result.success) {
+        socket.emit("error", result.error || "出價失敗");
+        return;
+      }
+
+      await saveGameState(roomId, gameState);
+
+      // 為每位玩家發送專屬視角的遊戲狀態
+      const socketsInRoom = await io.in(instanceId).fetchSockets();
+      for (const s of socketsInRoom) {
+        const viewerPlayerId = s.data.playerId;
+        if (viewerPlayerId && gameState.players[viewerPlayerId]) {
+          const clientGameState = toClientGameState(gameState, viewerPlayerId);
+          s.emit("game:stateUpdated", clientGameState);
+        }
+      }
+    });
+
+    socket.on("game:pass", async () => {
+      const gameState = await getInternalGameState(roomId);
+      if (!gameState) {
+        socket.emit("error", "遊戲狀態不存在");
+        return;
+      }
+
+      const result = processPass(gameState, playerId);
+      if (!result.success) {
+        socket.emit("error", result.error || "Pass 失敗");
+        return;
+      }
+
+      await saveGameState(roomId, gameState);
+
+      // 廣播拍賣結算結果
+      if (result.auctionEnded && result.auctionResult) {
+        io.to(instanceId).emit("game:auctionEnded", result.auctionResult);
+      }
+
+      // 為每位玩家發送專屬視角的遊戲狀態
+      const socketsInRoom = await io.in(instanceId).fetchSockets();
+      for (const s of socketsInRoom) {
+        const viewerPlayerId = s.data.playerId;
+        if (viewerPlayerId && gameState.players[viewerPlayerId]) {
+          const clientGameState = toClientGameState(gameState, viewerPlayerId);
+          s.emit("game:stateUpdated", clientGameState);
+        }
       }
     });
 
