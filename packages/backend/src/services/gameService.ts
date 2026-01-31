@@ -4,6 +4,8 @@ import {
   CardValue,
   ClientAuctionRoundState,
   DECK_CARDS,
+  FinalScore,
+  GameEndResult,
   GameState,
   INITIAL_HAND,
   PlayerBid,
@@ -30,6 +32,8 @@ export interface InternalGameState {
   currentPlayerIndex: number;
   players: Record<string, PlayerGameState>;
   auctionRound: InternalAuctionRoundState | null;
+  reverseCardCount: number; // 已翻出的紅框（反向拍賣）牌數量
+  gameEnded: boolean; // 遊戲是否已結束
 }
 
 function generateId(): string {
@@ -46,11 +50,8 @@ export function shuffleDeck<T>(array: T[]): T[] {
 }
 
 export function createDeck(): AuctionCard[] {
-  // Phase 5 只使用正向拍賣牌
-  const forwardCards = DECK_CARDS.filter(
-    (card) => card.auctionType === "forward"
-  );
-  return forwardCards.map((card) => ({
+  // 使用全部牌組（正向 + 反向）
+  return DECK_CARDS.map((card) => ({
     ...card,
     id: generateId(),
   }));
@@ -83,7 +84,20 @@ export function createInitialGameState(playerIds: string[]): InternalGameState {
     currentPlayerIndex: 0,
     players,
     auctionRound: null,
+    reverseCardCount: 0,
+    gameEnded: false,
   };
+
+  // 檢查第一張牌是否為紅框牌
+  if (currentCard && currentCard.auctionType === "reverse") {
+    state.reverseCardCount = 1;
+    // 第 4 張紅框牌翻開時遊戲立即結束
+    if (state.reverseCardCount >= 4) {
+      state.gameEnded = true;
+      state.auctionRound = null;
+      return state;
+    }
+  }
 
   // 自動開始第一輪拍賣
   if (currentCard) {
@@ -208,6 +222,7 @@ export interface PassResult {
   error?: string;
   auctionEnded?: boolean;
   auctionResult?: AuctionResult;
+  gameEnded?: boolean;
 }
 
 export function processPass(gameState: InternalGameState, playerId: string): PassResult {
@@ -233,6 +248,28 @@ export function processPass(gameState: InternalGameState, playerId: string): Pas
     return { success: false, error: "找不到玩家" };
   }
 
+  const currentCard = gameState.currentCard;
+  if (!currentCard) {
+    return { success: false, error: "沒有拍賣牌" };
+  }
+
+  // 根據拍賣類型分流處理
+  if (currentCard.auctionType === "reverse") {
+    return processPassReverse(gameState, playerId, playerIndex);
+  } else {
+    return processPassForward(gameState, playerId, playerIndex);
+  }
+}
+
+// 正向拍賣 Pass（原邏輯）
+function processPassForward(
+  gameState: InternalGameState,
+  playerId: string,
+  playerIndex: number
+): PassResult {
+  const auctionRound = gameState.auctionRound!;
+  const playerState = gameState.players[playerId];
+
   // 收回已出的全部牌到手牌
   const playerBid = auctionRound.bids[playerId];
   if (playerBid && playerBid.cards.length > 0) {
@@ -248,7 +285,7 @@ export function processPass(gameState: InternalGameState, playerId: string): Pas
 
   // 若只剩一人 → 結算
   if (auctionRound.activePlayers.length === 1) {
-    return settleAuction(gameState);
+    return settleAuctionForward(gameState);
   }
 
   // 調整 currentBidderIndex（如果移除的玩家在當前玩家之前或正好是當前玩家）
@@ -259,14 +296,84 @@ export function processPass(gameState: InternalGameState, playerId: string): Pas
   return { success: true, auctionEnded: false };
 }
 
+// 反向拍賣 Pass（第一個 Pass 的人得牌，其他人失去已出的牌）
+function processPassReverse(
+  gameState: InternalGameState,
+  playerId: string,
+  _playerIndex: number
+): PassResult {
+  const auctionRound = gameState.auctionRound!;
+  const currentCard = gameState.currentCard!;
+
+  // 第一個 Pass 的玩家直接得牌（免費但得到負面牌）
+  const winnerState = gameState.players[playerId];
+  winnerState.wonCards.push(currentCard);
+
+  // Pass 的玩家收回自己已出的牌（因為他免費獲得，不用花費）
+  const winnerBid = auctionRound.bids[playerId];
+  if (winnerBid && winnerBid.cards.length > 0) {
+    winnerState.hand.push(...winnerBid.cards);
+    winnerState.hand.sort((a, b) => a - b);
+  }
+
+  // 其他所有玩家繳出已出的牌（失去，計入 spentTotal）
+  for (const [otherPlayerId, bid] of Object.entries(auctionRound.bids)) {
+    if (otherPlayerId !== playerId && bid.cards.length > 0) {
+      const otherState = gameState.players[otherPlayerId];
+      otherState.spentTotal += bid.total;
+      // 牌已經從手牌移除，不用再做處理
+    }
+  }
+
+  // 記錄結算結果
+  const result: AuctionResult = {
+    winnerId: playerId,
+    card: currentCard,
+    spentCards: [], // 反向拍賣得牌者免費
+    spentTotal: 0,
+  };
+
+  // 設置下一輪的起始玩家為得牌者
+  const winnerTurnIndex = gameState.turnOrder.indexOf(playerId);
+  if (winnerTurnIndex !== -1) {
+    gameState.currentPlayerIndex = winnerTurnIndex;
+  }
+
+  // 翻開下一張牌並檢查遊戲結束條件
+  const nextCard = revealNextCard(gameState);
+
+  if (nextCard) {
+    // 檢查是否為紅框牌
+    if (nextCard.auctionType === "reverse") {
+      gameState.reverseCardCount++;
+      // 第 4 張紅框牌翻開時遊戲立即結束
+      if (gameState.reverseCardCount >= 4) {
+        gameState.gameEnded = true;
+        gameState.auctionRound = null;
+        gameState.currentCard = nextCard; // 保留最後一張牌以供顯示
+        return { success: true, auctionEnded: true, auctionResult: result, gameEnded: true };
+      }
+    }
+    // 開始新拍賣輪
+    startAuctionRound(gameState);
+  } else {
+    // 牌組用完，遊戲結束
+    gameState.gameEnded = true;
+    gameState.auctionRound = null;
+    gameState.currentCard = null;
+  }
+
+  return { success: true, auctionEnded: true, auctionResult: result, gameEnded: gameState.gameEnded };
+}
+
 // 輪到下一位玩家
 function advanceToNextBidder(auctionRound: InternalAuctionRoundState): void {
   auctionRound.currentBidderIndex =
     (auctionRound.currentBidderIndex + 1) % auctionRound.activePlayers.length;
 }
 
-// 結算拍賣
-export function settleAuction(gameState: InternalGameState): PassResult {
+// 結算正向拍賣
+function settleAuctionForward(gameState: InternalGameState): PassResult {
   const auctionRound = gameState.auctionRound;
   if (!auctionRound || auctionRound.activePlayers.length !== 1) {
     return { success: false, error: "無法結算" };
@@ -304,19 +411,36 @@ export function settleAuction(gameState: InternalGameState): PassResult {
     gameState.currentPlayerIndex = winnerTurnIndex;
   }
 
-  // 翻開下一張牌
+  // 翻開下一張牌並檢查遊戲結束條件
   const nextCard = revealNextCard(gameState);
 
   if (nextCard) {
+    // 檢查是否為紅框牌
+    if (nextCard.auctionType === "reverse") {
+      gameState.reverseCardCount++;
+      // 第 4 張紅框牌翻開時遊戲立即結束
+      if (gameState.reverseCardCount >= 4) {
+        gameState.gameEnded = true;
+        gameState.auctionRound = null;
+        gameState.currentCard = nextCard; // 保留最後一張牌以供顯示
+        return { success: true, auctionEnded: true, auctionResult: result, gameEnded: true };
+      }
+    }
     // 開始新拍賣輪
     startAuctionRound(gameState);
   } else {
-    // 遊戲結束
+    // 牌組用完，遊戲結束
+    gameState.gameEnded = true;
     gameState.auctionRound = null;
     gameState.currentCard = null;
   }
 
-  return { success: true, auctionEnded: true, auctionResult: result };
+  return { success: true, auctionEnded: true, auctionResult: result, gameEnded: gameState.gameEnded };
+}
+
+// 舊函數保留相容性（轉調新函數）
+export function settleAuction(gameState: InternalGameState): PassResult {
+  return settleAuctionForward(gameState);
 }
 
 // 轉換為客戶端視角的遊戲狀態（隱藏敏感資訊）
@@ -377,5 +501,74 @@ export function toClientGameState(
     myState: internalState.players[viewerPlayerId],
     otherPlayers,
     auctionRound,
+  };
+}
+
+// 初始手牌總和（用於計算剩餘現金）
+const INITIAL_MONEY = INITIAL_HAND.reduce((sum, card) => sum + card, 0); // 66
+
+// 計算最終分數
+export function calculateFinalScores(
+  gameState: InternalGameState,
+  playerNames: Record<string, string>
+): GameEndResult {
+  const scores: FinalScore[] = [];
+
+  for (const [playerId, playerState] of Object.entries(gameState.players)) {
+    // 計算奢侈品總值（luxury 類型的牌）
+    const luxuryTotal = playerState.wonCards
+      .filter((card) => card.type === "luxury")
+      .reduce((sum, card) => sum + card.value, 0);
+
+    // 計算倍率（累乘，x2 × x2 = x4，x2 × x0.5 = x1）
+    const multiplier = playerState.wonCards
+      .filter((card) => card.type === "multiplier")
+      .reduce((acc, card) => acc * card.value, 1);
+
+    // 計算扣分（penalty 類型的牌，value 為 -5）
+    const penalty = playerState.wonCards
+      .filter((card) => card.type === "penalty")
+      .reduce((sum, card) => sum + card.value, 0);
+
+    // 計算剩餘現金
+    const remainingMoney = INITIAL_MONEY - playerState.spentTotal;
+
+    // 最終分數 = 奢侈品總值 × 倍率 + 扣分
+    const finalScore = luxuryTotal * multiplier + penalty;
+
+    scores.push({
+      playerId,
+      playerName: playerNames[playerId] || "未知玩家",
+      luxuryTotal,
+      multiplier,
+      penalty,
+      finalScore,
+      remainingMoney,
+      isEliminated: false, // 稍後判定
+      wonCards: playerState.wonCards,
+    });
+  }
+
+  // 找出剩餘現金最少的玩家（失格判定）
+  const minMoney = Math.min(...scores.map((s) => s.remainingMoney));
+
+  // 標記出局玩家
+  for (const score of scores) {
+    if (score.remainingMoney === minMoney) {
+      score.isEliminated = true;
+    }
+  }
+
+  // 分離出局與未出局玩家
+  const eliminated = scores.filter((s) => s.isEliminated);
+  const active = scores.filter((s) => !s.isEliminated);
+
+  // 按分數排序（高到低）
+  active.sort((a, b) => b.finalScore - a.finalScore);
+  eliminated.sort((a, b) => b.finalScore - a.finalScore);
+
+  return {
+    rankings: active,
+    eliminated,
   };
 }

@@ -12,7 +12,7 @@ import {
   emitBid,
   emitPass,
 } from "./socket";
-import type { RoomPlayer, RoomStatus, GameState, AuctionCard, AuctionResult, CardValue } from "@high-society/shared";
+import type { RoomPlayer, RoomStatus, GameState, AuctionCard, AuctionResult, CardValue, GameEndResult } from "@high-society/shared";
 
 const user = ref<DiscordUser | null>(null);
 const error = ref<string | null>(null);
@@ -22,6 +22,7 @@ const roomStatus = ref<RoomStatus>("lobby");
 const gameState = ref<GameState | null>(null);
 const selectedCards = ref<CardValue[]>([]);
 const auctionResult = ref<AuctionResult | null>(null);
+const gameEndResult = ref<GameEndResult | null>(null);
 
 const currentPlayer = computed(() =>
   players.value.find((p) => p.discordId === user.value?.id)
@@ -176,6 +177,19 @@ function getPlayerName(playerId: string): string {
   return player?.name ?? "未知玩家";
 }
 
+function getWonCardsForPlayer(playerId: string): AuctionCard[] {
+  if (!gameState.value) return [];
+  if (playerId === currentPlayer.value?.id) {
+    return gameState.value.myState.wonCards;
+  }
+  return gameState.value.otherPlayers[playerId]?.wonCards ?? [];
+}
+
+function getWonCardsSummary(cards: AuctionCard[]): string {
+  if (cards.length === 0) return "";
+  return cards.map(c => getCardDisplayName(c)).join(", ");
+}
+
 onMounted(async () => {
   try {
     const result = await setupDiscordSdk();
@@ -229,6 +243,9 @@ onMounted(async () => {
           auctionResult.value = null;
         }, 3000);
       },
+      onGameEnded: (result) => {
+        gameEndResult.value = result;
+      },
       onError: (message) => {
         error.value = message;
       },
@@ -260,8 +277,58 @@ onUnmounted(() => {
     <template v-else-if="user">
       <!-- 遊戲進行中畫面 -->
       <div v-if="roomStatus === 'playing' && gameState" class="game-screen">
+        <!-- 遊戲結束畫面 -->
+        <div v-if="gameEndResult" class="game-end-overlay">
+          <div class="game-end-modal">
+            <h2>遊戲結束</h2>
+
+            <!-- 排名 -->
+            <div class="rankings-section">
+              <h3>最終排名</h3>
+              <div
+                v-for="(score, index) in gameEndResult.rankings"
+                :key="score.playerId"
+                class="ranking-item"
+                :class="{ winner: index === 0 }"
+              >
+                <div class="rank-position">{{ index + 1 }}</div>
+                <div class="rank-info">
+                  <div class="rank-name">{{ score.playerName }}</div>
+                  <div class="rank-score">{{ score.finalScore }} 分</div>
+                  <div class="rank-details">
+                    奢侈品: {{ score.luxuryTotal }} ×{{ score.multiplier }}
+                    <span v-if="score.penalty !== 0">{{ score.penalty }}</span>
+                    | 剩餘現金: {{ score.remainingMoney }}
+                  </div>
+                  <div class="rank-cards">
+                    獲得: {{ getWonCardsSummary(score.wonCards) || "無" }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 出局玩家 -->
+            <div v-if="gameEndResult.eliminated.length > 0" class="eliminated-section">
+              <h3>出局（現金最少）</h3>
+              <div
+                v-for="score in gameEndResult.eliminated"
+                :key="score.playerId"
+                class="eliminated-item"
+              >
+                <div class="rank-info">
+                  <div class="rank-name">{{ score.playerName }}</div>
+                  <div class="rank-details">
+                    剩餘現金: {{ score.remainingMoney }}
+                    | 原始分數: {{ score.finalScore }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 拍賣結算通知 -->
-        <div v-if="auctionResult" class="auction-result-overlay" @click="clearAuctionResult">
+        <div v-if="auctionResult && !gameEndResult" class="auction-result-overlay" @click="clearAuctionResult">
           <div class="auction-result-modal">
             <h3>拍賣結束</h3>
             <p><strong>{{ getPlayerName(auctionResult.winnerId) }}</strong> 得標</p>
@@ -333,6 +400,10 @@ onUnmounted(() => {
                   |
                   <span>已花費: {{ gameState.otherPlayers[player.id]!.spentTotal }}</span>
                 </template>
+              </div>
+              <!-- 顯示獲得的牌 -->
+              <div v-if="getWonCardsForPlayer(player.id).length > 0" class="player-won-cards">
+                獲得: {{ getWonCardsSummary(getWonCardsForPlayer(player.id)) }}
               </div>
               <!-- 顯示該玩家的出價 -->
               <div v-if="gameState.auctionRound?.otherBids[player.id]" class="player-bid-info">
@@ -940,5 +1011,136 @@ h1 {
 
 .auction-result-modal strong {
   color: #fff;
+}
+
+.player-won-cards {
+  font-size: 0.75em;
+  color: #69db7c;
+  margin-top: 0.25rem;
+}
+
+.game-end-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.game-end-modal {
+  background-color: #2a2a2a;
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  border: 3px solid #fab005;
+  max-width: 500px;
+  width: 100%;
+  animation: slideIn 0.3s ease-out;
+}
+
+.game-end-modal h2 {
+  color: #fab005;
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+}
+
+.rankings-section h3,
+.eliminated-section h3 {
+  color: #adb5bd;
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+  text-align: left;
+}
+
+.ranking-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.75rem;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  text-align: left;
+}
+
+.ranking-item.winner {
+  border: 2px solid #fab005;
+  background-color: #2a2a1a;
+}
+
+.rank-position {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #495057;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.ranking-item.winner .rank-position {
+  background-color: #fab005;
+  color: #1a1a1a;
+}
+
+.rank-info {
+  flex: 1;
+}
+
+.rank-name {
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 0.25rem;
+}
+
+.rank-score {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #69db7c;
+  margin-bottom: 0.25rem;
+}
+
+.rank-details {
+  font-size: 0.8em;
+  color: #adb5bd;
+}
+
+.rank-cards {
+  font-size: 0.75em;
+  color: #868e96;
+  margin-top: 0.25rem;
+}
+
+.eliminated-section {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #3a3a3a;
+}
+
+.eliminated-item {
+  padding: 0.75rem;
+  background-color: #2a1a1a;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  text-align: left;
+  border: 1px solid #ff6b6b;
+}
+
+.eliminated-item .rank-name {
+  color: #ff6b6b;
+}
+
+.eliminated-item .rank-details {
+  color: #868e96;
 }
 </style>

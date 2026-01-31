@@ -143,6 +143,16 @@ export async function getInternalGameState(roomId: string): Promise<InternalGame
   return room.gameState as unknown as InternalGameState;
 }
 
+export async function getRoom(roomId: string): Promise<{ players: RoomPlayer[] } | null> {
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    include: { players: true },
+  });
+
+  if (!room) return null;
+  return { players: room.players.map(toRoomPlayer) };
+}
+
 export async function saveGameState(
   roomId: string,
   gameState: InternalGameState

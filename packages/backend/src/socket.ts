@@ -16,8 +16,8 @@ import {
   setReady,
   startGame,
 } from "./services/roomService";
-import { toClientGameState, processBid, processPass } from "./services/gameService";
-import { getInternalGameState, saveGameState } from "./services/roomService";
+import { toClientGameState, processBid, processPass, calculateFinalScores } from "./services/gameService";
+import { getInternalGameState, saveGameState, getRoom } from "./services/roomService";
 
 interface SocketData {
   discordId: string;
@@ -195,6 +195,20 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
         if (viewerPlayerId && gameState.players[viewerPlayerId]) {
           const clientGameState = toClientGameState(gameState, viewerPlayerId);
           s.emit("game:stateUpdated", clientGameState);
+        }
+      }
+
+      // 檢查遊戲是否結束，廣播最終結果
+      if (result.gameEnded) {
+        const room = await getRoom(roomId);
+        if (room) {
+          // 建立 playerId 到 playerName 的對應
+          const playerNames: Record<string, string> = {};
+          for (const player of room.players) {
+            playerNames[player.id] = player.name;
+          }
+          const gameEndResult = calculateFinalScores(gameState, playerNames);
+          io.to(instanceId).emit("game:ended", gameEndResult);
         }
       }
     });

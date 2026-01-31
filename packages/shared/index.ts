@@ -41,6 +41,25 @@ export interface AuctionResult {
   spentTotal: number;
 }
 
+// 最終計分結果
+export interface FinalScore {
+  playerId: string;
+  playerName: string;
+  luxuryTotal: number; // 奢侈品總值
+  multiplier: number; // 倍率（累乘）
+  penalty: number; // 扣分
+  finalScore: number; // 最終分數
+  remainingMoney: number; // 剩餘現金
+  isEliminated: boolean; // 是否出局
+  wonCards: AuctionCard[]; // 獲得的牌
+}
+
+// 遊戲結束結果
+export interface GameEndResult {
+  rankings: FinalScore[]; // 按分數排序（已排除出局者）
+  eliminated: FinalScore[]; // 出局玩家
+}
+
 // 玩家遊戲狀態
 export interface PlayerGameState {
   hand: CardValue[];
@@ -138,6 +157,7 @@ export interface ServerToClientEvents {
   "game:cardRevealed": (card: AuctionCard) => void;
   "game:stateUpdated": (gameState: GameState) => void;
   "game:auctionEnded": (result: AuctionResult) => void;
+  "game:ended": (result: GameEndResult) => void;
   error: (message: string) => void;
 }
 
