@@ -105,7 +105,11 @@ export function revealNextCard(gameState: InternalGameState): AuctionCard | null
 // 開始新的拍賣輪
 export function startAuctionRound(gameState: InternalGameState): void {
   // 活躍玩家列表（從當前玩家開始的順序）
-  const activePlayers = [...gameState.turnOrder];
+  const startIndex = gameState.currentPlayerIndex;
+  const activePlayers = [
+    ...gameState.turnOrder.slice(startIndex),
+    ...gameState.turnOrder.slice(0, startIndex),
+  ];
 
   // 初始化所有玩家的出價
   const bids: Record<string, PlayerBid> = {};
