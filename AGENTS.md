@@ -10,9 +10,9 @@ This file provides guidance to AI coding agents working with this repository.
 
 > 完整 Roadmap 請參考 [ROADMAP.md](./ROADMAP.md)
 
-**Phase 3: Lobby** ← 下一階段
+**Phase 7: 潤飾** ← 下一階段
 
-> Phase 2 已完成（含補充優化）
+> Phase 6 已完成（完整規則實作）
 
 ## 開發指令
 

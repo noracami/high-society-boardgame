@@ -32,7 +32,7 @@ export interface InternalGameState {
   currentPlayerIndex: number;
   players: Record<string, PlayerGameState>;
   auctionRound: InternalAuctionRoundState | null;
-  reverseCardCount: number; // 已翻出的紅框（反向拍賣）牌數量
+  redCardCount: number; // 已翻出的紅框牌數量（multiplier 類型：x2, x0.5）
   gameEnded: boolean; // 遊戲是否已結束
 }
 
@@ -84,15 +84,15 @@ export function createInitialGameState(playerIds: string[]): InternalGameState {
     currentPlayerIndex: 0,
     players,
     auctionRound: null,
-    reverseCardCount: 0,
+    redCardCount: 0,
     gameEnded: false,
   };
 
-  // 檢查第一張牌是否為紅框牌
-  if (currentCard && currentCard.auctionType === "reverse") {
-    state.reverseCardCount = 1;
+  // 檢查第一張牌是否為紅框牌（multiplier 類型：x2, x0.5）
+  if (currentCard && currentCard.type === "multiplier") {
+    state.redCardCount = 1;
     // 第 4 張紅框牌翻開時遊戲立即結束
-    if (state.reverseCardCount >= 4) {
+    if (state.redCardCount >= 4) {
       state.gameEnded = true;
       state.auctionRound = null;
       return state;
@@ -343,11 +343,11 @@ function processPassReverse(
   const nextCard = revealNextCard(gameState);
 
   if (nextCard) {
-    // 檢查是否為紅框牌
-    if (nextCard.auctionType === "reverse") {
-      gameState.reverseCardCount++;
+    // 檢查是否為紅框牌（multiplier 類型：x2, x0.5）
+    if (nextCard.type === "multiplier") {
+      gameState.redCardCount++;
       // 第 4 張紅框牌翻開時遊戲立即結束
-      if (gameState.reverseCardCount >= 4) {
+      if (gameState.redCardCount >= 4) {
         gameState.gameEnded = true;
         gameState.auctionRound = null;
         gameState.currentCard = nextCard; // 保留最後一張牌以供顯示
@@ -415,11 +415,11 @@ function settleAuctionForward(gameState: InternalGameState): PassResult {
   const nextCard = revealNextCard(gameState);
 
   if (nextCard) {
-    // 檢查是否為紅框牌
-    if (nextCard.auctionType === "reverse") {
-      gameState.reverseCardCount++;
+    // 檢查是否為紅框牌（multiplier 類型：x2, x0.5）
+    if (nextCard.type === "multiplier") {
+      gameState.redCardCount++;
       // 第 4 張紅框牌翻開時遊戲立即結束
-      if (gameState.reverseCardCount >= 4) {
+      if (gameState.redCardCount >= 4) {
         gameState.gameEnded = true;
         gameState.auctionRound = null;
         gameState.currentCard = nextCard; // 保留最後一張牌以供顯示
