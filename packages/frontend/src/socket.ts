@@ -6,6 +6,7 @@ import type {
   RoomPlayer,
   RoomStatus,
   GameState,
+  ObserverGameState,
   AuctionCard,
   AuctionResult,
   CardValue,
@@ -22,9 +23,9 @@ export interface SocketCallbacks {
   onPlayerLeft: (playerId: string) => void;
   onPlayerUpdated: (player: RoomPlayer) => void;
   onRoomStatusChanged: (status: RoomStatus) => void;
-  onGameStarted: (gameState: GameState) => void;
+  onGameStarted: (gameState: GameState | ObserverGameState) => void;
   onCardRevealed: (card: AuctionCard) => void;
-  onGameStateUpdated: (gameState: GameState) => void;
+  onGameStateUpdated: (gameState: GameState | ObserverGameState) => void;
   onAuctionEnded: (result: AuctionResult) => void;
   onGameEnded: (result: GameEndResult) => void;
   onError: (message: string) => void;

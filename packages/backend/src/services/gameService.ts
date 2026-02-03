@@ -8,6 +8,8 @@ import {
   GameEndResult,
   GameState,
   INITIAL_HAND,
+  ObserverAuctionRoundState,
+  ObserverGameState,
   PlayerBid,
   PlayerGameState,
   PublicPlayerBid,
@@ -500,6 +502,53 @@ export function toClientGameState(
     currentPlayerIndex: internalState.currentPlayerIndex,
     myState: internalState.players[viewerPlayerId],
     otherPlayers,
+    auctionRound,
+  };
+}
+
+// 轉換為旁觀者視角的遊戲狀態（隱藏所有玩家的手牌內容和出價牌面）
+export function toObserverGameState(internalState: InternalGameState): ObserverGameState {
+  const players: Record<string, PublicPlayerGameState> = {};
+
+  for (const [playerId, playerState] of Object.entries(internalState.players)) {
+    players[playerId] = {
+      handCount: playerState.hand.length,
+      wonCards: playerState.wonCards,
+      spentTotal: playerState.spentTotal,
+    };
+  }
+
+  // 轉換拍賣輪狀態（使用 PublicPlayerBid）
+  let auctionRound: ObserverAuctionRoundState | null = null;
+  if (internalState.auctionRound) {
+    const internalAuction = internalState.auctionRound;
+    const currentBidderId = internalAuction.activePlayers[internalAuction.currentBidderIndex];
+
+    const bids: Record<string, PublicPlayerBid> = {};
+    for (const [playerId, bid] of Object.entries(internalAuction.bids)) {
+      bids[playerId] = {
+        playerId,
+        cardCount: bid.cards.length,
+        total: bid.total,
+      };
+    }
+
+    auctionRound = {
+      phase: internalAuction.phase,
+      activePlayers: internalAuction.activePlayers,
+      bids,
+      currentHighest: internalAuction.currentHighest,
+      currentBidderId,
+    };
+  }
+
+  return {
+    deckCount: internalState.deck.length,
+    currentCard: internalState.currentCard,
+    discardPile: internalState.discardPile,
+    turnOrder: internalState.turnOrder,
+    currentPlayerIndex: internalState.currentPlayerIndex,
+    players,
     auctionRound,
   };
 }

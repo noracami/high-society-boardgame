@@ -16,7 +16,8 @@ import {
   setReady,
   startGame,
 } from "./services/roomService";
-import { toClientGameState, processBid, processPass, calculateFinalScores } from "./services/gameService";
+import { toClientGameState, toObserverGameState, processBid, processPass, calculateFinalScores } from "./services/gameService";
+import type { InternalGameState } from "./services/gameService";
 import { getInternalGameState, saveGameState, getRoom } from "./services/roomService";
 
 interface SocketData {
@@ -39,6 +40,28 @@ type TypedSocket = Socket<
   Record<string, never>,
   SocketData
 >;
+
+// Helper function: 廣播遊戲狀態給房間內所有人（玩家收到 GameState，旁觀者收到 ObserverGameState）
+async function broadcastGameState(
+  io: TypedServer,
+  instanceId: string,
+  gameState: InternalGameState,
+  eventName: "game:started" | "game:stateUpdated"
+): Promise<void> {
+  const socketsInRoom = await io.in(instanceId).fetchSockets();
+  for (const s of socketsInRoom) {
+    const viewerPlayerId = s.data.playerId;
+    if (viewerPlayerId && gameState.players[viewerPlayerId]) {
+      // 玩家：發送專屬視角的遊戲狀態
+      const clientGameState = toClientGameState(gameState, viewerPlayerId);
+      s.emit(eventName, clientGameState);
+    } else if (viewerPlayerId) {
+      // 旁觀者：發送公開的遊戲狀態
+      const observerGameState = toObserverGameState(gameState);
+      s.emit(eventName, observerGameState);
+    }
+  }
+}
 
 export function initSocketServer(httpServer: HttpServer): TypedServer {
   const io: TypedServer = new Server(httpServer, {
@@ -128,15 +151,8 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
       if (result.success && result.status && result.gameState) {
         io.to(instanceId).emit("room:statusChanged", result.status);
 
-        // 為每位玩家發送專屬視角的遊戲狀態
-        const socketsInRoom = await io.in(instanceId).fetchSockets();
-        for (const s of socketsInRoom) {
-          const viewerPlayerId = s.data.playerId;
-          if (viewerPlayerId && result.gameState.players[viewerPlayerId]) {
-            const clientGameState = toClientGameState(result.gameState, viewerPlayerId);
-            s.emit("game:started", clientGameState);
-          }
-        }
+        // 為每位玩家發送專屬視角的遊戲狀態，旁觀者發送公開狀態
+        await broadcastGameState(io, instanceId, result.gameState, "game:started");
       } else {
         socket.emit("error", result.error || "開始遊戲失敗");
       }
@@ -157,15 +173,8 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
 
       await saveGameState(roomId, gameState);
 
-      // 為每位玩家發送專屬視角的遊戲狀態
-      const socketsInRoom = await io.in(instanceId).fetchSockets();
-      for (const s of socketsInRoom) {
-        const viewerPlayerId = s.data.playerId;
-        if (viewerPlayerId && gameState.players[viewerPlayerId]) {
-          const clientGameState = toClientGameState(gameState, viewerPlayerId);
-          s.emit("game:stateUpdated", clientGameState);
-        }
-      }
+      // 為每位玩家發送專屬視角的遊戲狀態，旁觀者發送公開狀態
+      await broadcastGameState(io, instanceId, gameState, "game:stateUpdated");
     });
 
     socket.on("game:pass", async () => {
@@ -188,15 +197,8 @@ export function initSocketServer(httpServer: HttpServer): TypedServer {
         io.to(instanceId).emit("game:auctionEnded", result.auctionResult);
       }
 
-      // 為每位玩家發送專屬視角的遊戲狀態
-      const socketsInRoom = await io.in(instanceId).fetchSockets();
-      for (const s of socketsInRoom) {
-        const viewerPlayerId = s.data.playerId;
-        if (viewerPlayerId && gameState.players[viewerPlayerId]) {
-          const clientGameState = toClientGameState(gameState, viewerPlayerId);
-          s.emit("game:stateUpdated", clientGameState);
-        }
-      }
+      // 為每位玩家發送專屬視角的遊戲狀態，旁觀者發送公開狀態
+      await broadcastGameState(io, instanceId, gameState, "game:stateUpdated");
 
       // 檢查遊戲是否結束，廣播最終結果
       if (result.gameEnded) {

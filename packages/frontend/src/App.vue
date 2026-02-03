@@ -12,14 +12,14 @@ import {
   emitBid,
   emitPass,
 } from "./socket";
-import type { RoomPlayer, RoomStatus, GameState, AuctionCard, AuctionResult, CardValue, GameEndResult } from "@high-society/shared";
+import type { RoomPlayer, RoomStatus, GameState, ObserverGameState, AuctionCard, AuctionResult, CardValue, GameEndResult } from "@high-society/shared";
 
 const user = ref<DiscordUser | null>(null);
 const error = ref<string | null>(null);
 const loading = ref(true);
 const players = ref<RoomPlayer[]>([]);
 const roomStatus = ref<RoomStatus>("lobby");
-const gameState = ref<GameState | null>(null);
+const gameState = ref<GameState | ObserverGameState | null>(null);
 const selectedCards = ref<CardValue[]>([]);
 const auctionResult = ref<AuctionResult | null>(null);
 const gameEndResult = ref<GameEndResult | null>(null);
@@ -40,6 +40,12 @@ const playerCount = computed(() => activePlayers.value.length);
 
 const isRoomFull = computed(() => playerCount.value >= 5);
 
+// 判斷是否以觀戰者視角觀看遊戲（gameState 沒有 myState 屬性）
+const isViewingAsObserver = computed(() => {
+  if (!gameState.value) return false;
+  return !("myState" in gameState.value);
+});
+
 const canStartGame = computed(() => {
   if (roomStatus.value !== "lobby") return false;
   if (playerCount.value < 2 || playerCount.value > 5) return false; // TODO: 改回 4（正式遊戲規則）
@@ -54,7 +60,9 @@ const isInAuction = computed(() => {
 });
 
 const isMyTurn = computed(() => {
-  return gameState.value?.auctionRound?.isMyTurn ?? false;
+  if (isViewingAsObserver.value) return false;
+  const state = gameState.value as GameState | null;
+  return state?.auctionRound?.isMyTurn ?? false;
 });
 
 const currentHighest = computed(() => {
@@ -62,7 +70,9 @@ const currentHighest = computed(() => {
 });
 
 const myCurrentBidTotal = computed(() => {
-  return gameState.value?.auctionRound?.myBid?.total ?? 0;
+  if (isViewingAsObserver.value) return 0;
+  const state = gameState.value as GameState | null;
+  return state?.auctionRound?.myBid?.total ?? 0;
 });
 
 const selectedTotal = computed(() => {
@@ -179,10 +189,17 @@ function getPlayerName(playerId: string): string {
 
 function getWonCardsForPlayer(playerId: string): AuctionCard[] {
   if (!gameState.value) return [];
-  if (playerId === currentPlayer.value?.id) {
-    return gameState.value.myState.wonCards;
+  if (isViewingAsObserver.value) {
+    // 觀戰者視角：所有玩家都在 players 中
+    const observerState = gameState.value as ObserverGameState;
+    return observerState.players[playerId]?.wonCards ?? [];
   }
-  return gameState.value.otherPlayers[playerId]?.wonCards ?? [];
+  // 玩家視角
+  const playerState = gameState.value as GameState;
+  if (playerId === currentPlayer.value?.id) {
+    return playerState.myState.wonCards;
+  }
+  return playerState.otherPlayers[playerId]?.wonCards ?? [];
 }
 
 function getWonCardsSummary(cards: AuctionCard[]): string {
@@ -277,6 +294,10 @@ onUnmounted(() => {
     <template v-else-if="user">
       <!-- 遊戲進行中畫面 -->
       <div v-if="roomStatus === 'playing' && gameState" class="game-screen">
+        <!-- 觀戰模式提示 -->
+        <div v-if="isViewingAsObserver" class="observer-banner">
+          👁️ 觀戰模式 - 你正在觀看遊戲進行
+        </div>
         <!-- 遊戲結束畫面 -->
         <div v-if="gameEndResult" class="game-end-overlay">
           <div class="game-end-modal">
@@ -365,9 +386,9 @@ onUnmounted(() => {
             <span class="highest-bid">當前最高出價: {{ currentHighest }}</span>
             <span v-if="isMyTurn" class="my-turn-indicator">輪到你了</span>
           </div>
-          <div v-if="gameState.auctionRound.myBid && gameState.auctionRound.myBid.total > 0" class="my-bid-info">
-            你已出價: {{ gameState.auctionRound.myBid.total }}
-            ({{ gameState.auctionRound.myBid.cards.join(', ') }})
+          <div v-if="!isViewingAsObserver && (gameState as GameState).auctionRound?.myBid && (gameState as GameState).auctionRound!.myBid!.total > 0" class="my-bid-info">
+            你已出價: {{ (gameState as GameState).auctionRound!.myBid!.total }}
+            ({{ (gameState as GameState).auctionRound!.myBid!.cards.join(', ') }})
           </div>
         </div>
 
@@ -386,40 +407,55 @@ onUnmounted(() => {
             >
               <div class="player-info-name">
                 {{ player.name }}
-                <span v-if="player.discordId === user?.id">(你)</span>
+                <span v-if="!isViewingAsObserver && player.discordId === user?.id">(你)</span>
                 <span v-if="gameState.auctionRound && !gameState.auctionRound.activePlayers.includes(player.id)" class="passed-badge">已 Pass</span>
               </div>
               <div class="player-info-stats">
-                <template v-if="player.discordId === user?.id">
-                  <span>手牌: {{ gameState.myState.hand.length }}張</span>
+                <!-- 觀戰者視角：所有玩家都用 players -->
+                <template v-if="isViewingAsObserver">
+                  <span>手牌: {{ (gameState as ObserverGameState).players[player.id]?.handCount ?? 0 }}張</span>
                   |
-                  <span>已花費: {{ gameState.myState.spentTotal }}</span>
+                  <span>已花費: {{ (gameState as ObserverGameState).players[player.id]?.spentTotal ?? 0 }}</span>
                 </template>
-                <template v-else-if="gameState.otherPlayers[player.id]">
-                  <span>手牌: {{ gameState.otherPlayers[player.id]!.handCount }}張</span>
+                <!-- 玩家視角 -->
+                <template v-else-if="player.discordId === user?.id">
+                  <span>手牌: {{ (gameState as GameState).myState.hand.length }}張</span>
                   |
-                  <span>已花費: {{ gameState.otherPlayers[player.id]!.spentTotal }}</span>
+                  <span>已花費: {{ (gameState as GameState).myState.spentTotal }}</span>
+                </template>
+                <template v-else-if="(gameState as GameState).otherPlayers[player.id]">
+                  <span>手牌: {{ (gameState as GameState).otherPlayers[player.id]!.handCount }}張</span>
+                  |
+                  <span>已花費: {{ (gameState as GameState).otherPlayers[player.id]!.spentTotal }}</span>
                 </template>
               </div>
               <!-- 顯示獲得的牌 -->
               <div v-if="getWonCardsForPlayer(player.id).length > 0" class="player-won-cards">
                 獲得: {{ getWonCardsSummary(getWonCardsForPlayer(player.id)) }}
               </div>
-              <!-- 顯示該玩家的出價 -->
-              <div v-if="gameState.auctionRound?.otherBids[player.id]" class="player-bid-info">
-                出價: {{ gameState.auctionRound.otherBids[player.id]!.total }}
-                ({{ gameState.auctionRound.otherBids[player.id]!.cardCount }}張牌)
-              </div>
+              <!-- 顯示該玩家的出價（觀戰者與玩家視角不同） -->
+              <template v-if="isViewingAsObserver">
+                <div v-if="(gameState as ObserverGameState).auctionRound?.bids[player.id]" class="player-bid-info">
+                  出價: {{ (gameState as ObserverGameState).auctionRound!.bids[player.id]!.total }}
+                  ({{ (gameState as ObserverGameState).auctionRound!.bids[player.id]!.cardCount }}張牌)
+                </div>
+              </template>
+              <template v-else>
+                <div v-if="(gameState as GameState).auctionRound?.otherBids[player.id]" class="player-bid-info">
+                  出價: {{ (gameState as GameState).auctionRound!.otherBids[player.id]!.total }}
+                  ({{ (gameState as GameState).auctionRound!.otherBids[player.id]!.cardCount }}張牌)
+                </div>
+              </template>
             </div>
           </div>
         </div>
 
-        <!-- 我的手牌 -->
-        <div class="my-hand">
+        <!-- 我的手牌（觀戰者不顯示） -->
+        <div v-if="!isViewingAsObserver" class="my-hand">
           <h3>我的手牌 <span v-if="selectedCards.length > 0">(已選: {{ selectedTotal }})</span></h3>
           <div class="hand-cards">
             <div
-              v-for="(card, index) in gameState.myState.hand"
+              v-for="(card, index) in (gameState as GameState).myState.hand"
               :key="`${card}-${index}`"
               class="hand-card"
               :class="{ selected: isCardSelected(card) }"
@@ -1142,5 +1178,15 @@ h1 {
 
 .eliminated-item .rank-details {
   color: #868e96;
+}
+
+.observer-banner {
+  background-color: #364fc7;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  text-align: center;
 }
 </style>

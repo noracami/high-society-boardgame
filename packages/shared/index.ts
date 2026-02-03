@@ -85,6 +85,15 @@ export interface ClientAuctionRoundState {
   isMyTurn: boolean; // 是否輪到自己
 }
 
+// 旁觀者的拍賣狀態（沒有 myBid、isMyTurn）
+export interface ObserverAuctionRoundState {
+  phase: "bidding" | "settling";
+  activePlayers: string[];
+  bids: Record<string, PublicPlayerBid>;
+  currentHighest: number;
+  currentBidderId: string;
+}
+
 // 遊戲狀態
 export interface GameState {
   deckCount: number; // 剩餘牌數（不揭露內容）
@@ -95,6 +104,17 @@ export interface GameState {
   myState: PlayerGameState; // 自己的完整狀態
   otherPlayers: Record<string, PublicPlayerGameState>; // 其他玩家的公開狀態
   auctionRound: ClientAuctionRoundState | null; // 拍賣輪狀態
+}
+
+// 旁觀者的遊戲狀態（沒有 myState，所有玩家都是 PublicPlayerGameState）
+export interface ObserverGameState {
+  deckCount: number;
+  currentCard: AuctionCard | null;
+  discardPile: AuctionCard[];
+  turnOrder: string[];
+  currentPlayerIndex: number;
+  players: Record<string, PublicPlayerGameState>; // 所有玩家的公開狀態
+  auctionRound: ObserverAuctionRoundState | null;
 }
 
 // 常數
@@ -144,7 +164,7 @@ export interface RoomState {
   instanceId: string;
   status: RoomStatus;
   players: RoomPlayer[];
-  gameState: GameState | null;
+  gameState: GameState | ObserverGameState | null;
 }
 
 export interface ServerToClientEvents {
@@ -153,9 +173,9 @@ export interface ServerToClientEvents {
   "player:left": (playerId: string) => void;
   "player:updated": (player: RoomPlayer) => void;
   "room:statusChanged": (status: RoomStatus) => void;
-  "game:started": (gameState: GameState) => void;
+  "game:started": (gameState: GameState | ObserverGameState) => void;
   "game:cardRevealed": (card: AuctionCard) => void;
-  "game:stateUpdated": (gameState: GameState) => void;
+  "game:stateUpdated": (gameState: GameState | ObserverGameState) => void;
   "game:auctionEnded": (result: AuctionResult) => void;
   "game:ended": (result: GameEndResult) => void;
   error: (message: string) => void;

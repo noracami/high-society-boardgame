@@ -1,6 +1,6 @@
 import { PrismaClient, PlayerRole as PrismaPlayerRole, RoomStatus as PrismaRoomStatus } from "@prisma/client";
-import type { RoomState, RoomPlayer, RoomStatus, PlayerRole, GameState } from "@high-society/shared";
-import { InternalGameState, toClientGameState, createInitialGameState } from "./gameService";
+import type { RoomState, RoomPlayer, RoomStatus, PlayerRole, GameState, ObserverGameState } from "@high-society/shared";
+import { InternalGameState, toClientGameState, toObserverGameState, createInitialGameState } from "./gameService";
 
 const prisma = new PrismaClient();
 
@@ -118,10 +118,17 @@ export async function getRoomState(
 
   if (!room) return null;
 
-  let gameState: GameState | null = null;
+  let gameState: GameState | ObserverGameState | null = null;
   if (room.gameState && viewerPlayerId) {
     const internalState = room.gameState as unknown as InternalGameState;
-    gameState = toClientGameState(internalState, viewerPlayerId);
+    // 判斷 viewerPlayerId 是否為遊戲中的玩家
+    if (internalState.players[viewerPlayerId]) {
+      // 玩家：發送專屬視角的遊戲狀態
+      gameState = toClientGameState(internalState, viewerPlayerId);
+    } else {
+      // 旁觀者：發送公開的遊戲狀態
+      gameState = toObserverGameState(internalState);
+    }
   }
 
   return {
