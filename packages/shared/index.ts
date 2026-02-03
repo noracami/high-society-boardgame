@@ -1,4 +1,4 @@
-// packages/shared/index.ts
+// packages/shared/index.ts - 共用型別定義
 export type CardValue = 1 | 2 | 3 | 4 | 6 | 8 | 10 | 12 | 15 | 20 | 25;
 
 export interface Player {
