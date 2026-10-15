@@ -68,4 +68,9 @@ ENV PORT=3001
 
 EXPOSE 3001
 
-CMD ["node", "packages/backend/dist/index.js"]
+# Dokploy（Docker Swarm）靠它決定新版本能不能接流量、失敗要不要回滾
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- "http://127.0.0.1:${PORT}/up" || exit 1
+
+# 先套用 Prisma migration 再啟動（冪等；沒有新 migration 時直接結束）
+CMD ["sh", "-c", "pnpm --filter backend exec prisma migrate deploy && exec node packages/backend/dist/index.js"]
