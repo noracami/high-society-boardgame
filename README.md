@@ -1,6 +1,6 @@
 # 🥂 上流社會 (High Society) on Discord
 
-一個專為 Discord Activity 打造的《上流社會》桌遊實作專案。本專案採用 **Monorepo** 架構，結合 Vue 3、Node.js 與 PostgreSQL，並使用 Kamal 2 實現自動化部署。
+一個專為 Discord Activity 打造的《上流社會》桌遊實作專案。本專案採用 **Monorepo** 架構，結合 Vue 3、Node.js 與 PostgreSQL，部署在 Dokploy 上。
 
 ---
 
@@ -11,7 +11,7 @@
 - **共用模組 (Shared)**: TypeScript Interfaces & Constants (型別防線).
 - **資料庫 (Database)**: PostgreSQL (唯一真理來源).
 - **基礎設施 (Infra)**:
-- **Kamal 2**: 負責零停機部署 (Zero-downtime Deploy).
+- **Dokploy**: 單台 VM 上的部署平台（Docker Swarm＋Traefik），release PR 經核准後部署.
 - **Cloudflare**: 提供 CDN、DDoS 防護與反向代理 (Proxy).
 - **GCP Artifact Registry**: 存放 Docker 映像檔。
 
@@ -24,7 +24,6 @@
 - `packages/frontend`: 基於 Vite 的 Vue 3 前端專案。
 - `packages/backend`: Node.js 遊戲權威伺服器。
 - `packages/shared`: 前後端共用的型別定義與遊戲邏輯（如：牌面金額、對局狀態枚舉）。
-- `config/`: 存放 Kamal 部署設定檔。
 - `docs/`: 存放 ADR (架構決策紀錄) 與詳細說明文件。
 
 ---
@@ -72,7 +71,7 @@ pnpm dev
 
 1. **編譯期**：Vite 將前端編譯為靜態檔案。
 2. **運行期**：Node.js 伺服器同時負責託管靜態檔案與處理 WebSocket 連線。
-3. **流量路徑**：`Discord iframe` → `Cloudflare` → `Kamal Proxy` → `Node.js Container`。
+3. **流量路徑**：`Discord iframe` → `Cloudflare` → `Cloudflare Tunnel` → `Traefik（Dokploy）` → `Node.js Container`。
 
 詳細架構設計請參考 [ARCHITECTURE.md](https://www.google.com/search?q=./docs/ARCHITECTURE.md)。
 
@@ -90,10 +89,11 @@ pnpm dev
 
 ## 🚢 部署 (Deployment)
 
-部署由 GitHub Actions 與 Kamal 2 自動化完成。當 PR 合併至 `main` 分支後，系統會自動打包映像檔推送到 GCP 並更新伺服器。
+一般 PR 合併至 `main` 只跑 E2E，不會部署。合併改了 `packages/backend/package.json` 版號的 release PR 後，GitHub Actions 經人工核准，打包映像檔推送到 ghcr 並觸發 Dokploy 部署。
 
-- 部署指令 (僅限管理員)：`kamal deploy`
-- 詳細流程請參考 [DEPLOYMENT.md](https://www.google.com/search?q=./docs/DEPLOYMENT.md)。
+- 發版步驟：[AGENTS.md](./AGENTS.md)「發版」
+- 架構與設定：[DEPLOYMENT.md](./docs/DEPLOYMENT.md)
+- 版本紀錄：[CHANGELOG.md](./CHANGELOG.md)
 
 ---
 

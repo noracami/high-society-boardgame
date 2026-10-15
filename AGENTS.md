@@ -39,22 +39,47 @@ packages/
 - **Authoritative Server 模式**：所有遊戲邏輯在後端驗證，前端僅為狀態投影
 - **PostgreSQL JSONB**：儲存遊戲狀態，伺服器重啟不丟失
 - **Socket.io Room**：以 Discord `activity_instance_id` 作為房間 ID
-- **Kamal 2 部署**：Docker 容器化，Kamal Proxy 處理 TLS 終止與 WebSocket 轉發
+- **Dokploy 部署**：Docker 容器化，單副本 `stop-first`；Cloudflare Tunnel＋Traefik 處理 TLS 與 WebSocket 轉發
 
 ## 部署
 
-**Production URL**: `https://hs.miao-bao.cc`
+**Production URL**: `https://hs.miao-bao.cc`（架構與設定見 `docs/DEPLOYMENT.md`）
 
-**CI/CD Pipeline** (GitHub Actions):
 ```
-push to main → test (E2E) → deploy (Kamal)
+PR → CI（E2E：容器＋真的 Postgres）
+release PR merge → E2E → 核准 → dokploy-deploy（ghcr）→ Dokploy → tag vX.Y.Z
 ```
 
-- **Runner**: `ubuntu-24.04-arm` (ARM64 原生，與 VM 架構相同)
-- **Docker Cache**: test 和 deploy 共用 GHA cache，加速建構
-- **Kamal Timeout**:
-  - `deploy_timeout: 10` - 等待新 container 健康檢查
-  - `drain_timeout: 5` - 等待舊連線結束（配合 localStorage 重連策略）
+容器啟動時先跑 `prisma migrate deploy`；新增 migration 不需要額外步驟，但要確認它能在既有資料上跑。
+
+## 發版
+
+**一般 PR merge 進 `main` 不會部署，merge release PR 才會**——也就是改了 `packages/backend/package.json` 的 `version` 的 PR。`.github/workflows/release.yml` 看到版號 X.Y.Z 還沒有 `vX.Y.Z` tag，就跑 E2E、build image、打 Dokploy webhook，成功後才在該 commit 打上 `vX.Y.Z`。版號已經有 tag 的 push 會被跳過。部署失敗就修好原因、手動重跑 workflow（`workflow_dispatch`）。不要手動推 `v*` tag。
+
+deploy job 跑在 GitHub Environment **`production`**：要審核者（目前是 @noracami）核准才會執行，只有 main 能部署。`DOKPLOY_WEBHOOK` 是這個 environment 的 secret。
+
+**什麼時候該提議發版（agent）**——只提議，不要自己動手：
+
+- 剛 merge 了一個 `feat`／`fix`／`perf` 且改到 `packages/` 或 `Dockerfile` 的 PR；
+- 使用者要求部署或上線；
+- session 開始時 `git log $(git describe --tags --match 'v*' --abbrev=0)..origin/main --oneline -- packages Dockerfile` 不是空的（提一次就好）。
+
+**沒有使用者同意，絕對不要 merge release PR**——merge 就是部署到正式站。
+
+**步驟：**
+
+1. 找出上一個 tag 之後 merge 的 PR：
+   ```sh
+   LAST=$(git describe --tags --match 'v*' --abbrev=0)
+   git log --merges --first-parent "$LAST"..origin/main --format='%s'   # "Merge pull request #N …"
+   gh pr view <N> --json title,files
+   ```
+2. 決定版號：有 `feat` → minor，只有 `fix`／`perf` → patch。沒有值得發的就不發。
+3. 開 branch，改 `packages/backend/package.json` 的 `version`，在 `CHANGELOG.md` 最上面加一節——**一個 PR 一行**，分「新功能」／「修正」，連結 PR：`* <PR 標題去掉類型前綴> ([#N](https://github.com/noracami/high-society-boardgame/pull/N))`。用 merge commit 時同一個改動在 `git log` 會出現兩次，所以以 PR 為單位。
+4. 開 PR，標題 `chore: release X.Y.Z`，只含版號與 CHANGELOG。不要在功能 PR 裡順便改版號。
+5. merge 後就會部署。部署會讓玩家斷線幾秒、自動重連，遊戲狀態在 DB 不會遺失。確認 *Release* run 成功、`vX.Y.Z` 有打上、`https://hs.miao-bao.cc/up` 回 200。
+
+回滾：在 Dokploy 把 image 改成之前的 `:X.Y.Z` 再 redeploy。**版號打過 tag 就不再重用。**
 
 ## 共用型別
 

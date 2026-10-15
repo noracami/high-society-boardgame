@@ -1,153 +1,52 @@
 # 🚢 部署指南 (Deployment Guide)
 
-本文件說明 **High Society** 專案的自動化部署流程，包含基礎設施架構、GCP Registry 驗證以及 GitHub Actions 的整合。
+正式站：`https://hs.miao-bao.cc`。跑在單台 GCP VM 上的 [Dokploy](https://dokploy.com)（Docker Swarm），對外走 Cloudflare Tunnel。主機與 tunnel 的設定放在另一個私有的 infra repo，這裡只記與這個專案有關的部分。決策背景見 [ADR-0005](./adr/0005-dokploy-deployment.md)。
 
 ---
 
-## 1. 部署架構 (Deployment Architecture)
-
-我們採用 **"Separated Build & Deploy"** 模式，確保伺服器（VM）資源專注於運行遊戲，而非執行繁重的編譯工作。
-
-1. **Build (GHA)**: GitHub Actions 負責打包 Vue 與 Node.js 為單一 Docker Image。
-2. **Push (GAR)**: 打包好的 Image 推送到 **GCP Artifact Registry (GAR)**。
-3. **Deploy (Kamal)**: GHA 透過 SSH 遙控 VM，指令 VM 從 GAR 抓取 Image 並執行。
-
----
-
-## 2. 前置需求 (Prerequisites)
-
-在執行首次部署前，必須完成以下設定：
-
-### **A. 伺服器端 (VPS/VM)**
-
-- 系統環境：Ubuntu 22.04+ 或任何支援 Docker 的 Linux 發行版。
-- 權限：SSH 存取權限，且該 User 具備執行 `docker` 的權限。
-- 防火牆：開啟 `80` (HTTP), `443` (HTTPS) 以及 `22` (SSH) 埠口。
-
-### **B. GCP 雲端設定**
-
-- 啟用 **Artifact Registry**。
-- 建立一個 **Service Account** 並給予 `Artifact Registry Reader` 權限。
-- 產生 JSON Key，並進行 Base64 編碼，用於 Kamal 登入。
-
-### **C. GitHub Secrets**
-
-請在 GitHub Repo 設定以下 Secrets：
-
-- `SSH_KEY`: 登入 VM 的私鑰。
-- `GCP_ARTIFACT_KEY`: GCP Service Account 的 Base64 Key。
-- `KAMAL_SECRETS`: 包含資料庫密碼、Discord Client Secret 的 Kamal 加密內容。
-
----
-
-## 3. Kamal 2 設定檔範本 (`config/deploy.yml`)
-
-這是部署的核心，定義了應用程式與 PostgreSQL 的連動方式。
-
-```yaml
-service: high-society
-image: [GCP_REGION]-docker.pkg.dev/[PROJECT_ID]/[REPO]/game-app
-
-servers:
-  web:
-    hosts:
-      - [YOUR_VM_IP]
-
-proxy:
-  ssl: true
-  host: game.miao-bao.cc
-  app_port: 3000
-
-registry:
-  server: [GCP_REGION]-docker.pkg.dev
-  username: _json_key_base64
-  password:
-    - GCP_ARTIFACT_KEY
-
-accessories:
-  db:
-    image: postgres:16
-    host: [YOUR_VM_IP]
-    port: 5432
-    env:
-      clear:
-        POSTGRES_USER: app_user
-        POSTGRES_DB: high_society
-      secret:
-        - POSTGRES_PASSWORD
-    directories:
-      - /var/lib/postgresql/data:/var/lib/postgresql/data
+## 1. 部署架構
 
 ```
-
----
-
-## 4. 自動化流程 (GitHub Actions)
-
-當代碼合併至 `main` 時，`.github/workflows/deploy.yml` 會觸發以下流程：
-
-1. **Checkout Code**: 取得最新代碼。
-2. **Setup Kamal**: 安裝 Ruby 與 Kamal 2。
-3. **Build & Push**: 在 GHA 環境下打包 Docker Image 並推送到 GCP。
-4. **Kamal Deploy**:
-
-```bash
-kamal deploy --skip-push
-
+release PR merge → GitHub Actions：E2E → 核准 → build image 推 ghcr → 打 Dokploy webhook → 打 vX.Y.Z tag
+                                                                         │
+Discord iframe → Cloudflare → Tunnel → Traefik（Dokploy）→ Node.js 容器 ──┘
+                                                          └→ Postgres（Dokploy，內網）
 ```
 
-此指令會透過 SSH 連到伺服器，啟動新容器，通過健康檢查後切換流量。
+- **Image**：`ghcr.io/noracami/high-society-boardgame`（public），tag `:X.Y.Z`、`:X.Y`、`:latest`、`:<sha>`。
+- **Build**：`lathyrus-odoratus/dokploy-deploy@v1`，在 GitHub Actions 的 amd64 runner 上 build。`VITE_DISCORD_CLIENT_ID` 是 build-time 參數（前端會打包進去）。
+- **資料庫**：Dokploy 的 Postgres 服務（postgres:17），只在內網，每天備份到 R2。
+- **Migration**：容器啟動時先跑 `prisma migrate deploy` 再啟動伺服器（見 `Dockerfile` 的 `CMD`）。
+- **健康檢查**：`Dockerfile` 的 `HEALTHCHECK` 打 `/up`。Swarm 用它判斷新版本能不能接流量，失敗會自動回滾。
 
 ---
 
-## 5. 常用運維指令 (Operation Commands)
+## 2. 發版流程
 
-所有指令皆在本地執行，由 Kamal 透過 SSH 轉達給伺服器。
-
-| 指令                        | 說明                                     |
-| --------------------------- | ---------------------------------------- |
-| `kamal deploy`              | 完整部署流程（打包 + 推送 + 更新）       |
-| `kamal rollback`            | 發現 Bug？秒級回滾到上一個穩定版本       |
-| `kamal app details`         | 查看目前容器運行狀態與版本               |
-| `kamal app logs -f`         | 即時查看伺服器 Log (Socket 排除障礙必備) |
-| `kamal accessory reboot db` | 重啟 PostgreSQL 容器                     |
+一般 PR merge 進 `main` 只跑 E2E，**不會部署**。merge 一個改了 `packages/backend/package.json` 版號的 PR（release PR）才會：`.github/workflows/release.yml` 跑 E2E，等 `production` environment 的審核者核准，build＋推 ghcr＋觸發 Dokploy，成功後打 `vX.Y.Z` tag。步驟見 [AGENTS.md](../AGENTS.md)「發版」。
 
 ---
 
-## 6. 零停機部署 (Zero-Downtime) 運作原理
+## 3. 設定放在哪裡
 
-Kamal 2 使用 **Kamal Proxy** 來達成無縫切換：
+| 設定 | 位置 |
+|---|---|
+| `DATABASE_URL`、`DISCORD_CLIENT_ID`、`DISCORD_CLIENT_SECRET` | Dokploy → high-society app → Environment |
+| `VITE_DISCORD_CLIENT_ID`（build-time） | GitHub repo secret `DISCORD_CLIENT_ID` |
+| `DOKPLOY_WEBHOOK` | GitHub Environment `production` 的 secret |
 
-1. **Boot**: 啟動新版本的容器。
-2. **Healthcheck**: 每隔一秒檢查一次 `/up` 端點。
-3. **Switch**: 只有在新容器回報 `200 OK` 後，Proxy 才會將流量導入新容器。
-4. **Prune**: 流量完全切換後，舊容器會被優雅地關閉。
-
----
-
-## 7. Cloudflare 設定注意事項
-
-若使用 Cloudflare 作為 CDN 與反向代理，需注意以下設定：
-
-### SSL/TLS 模式
-
-**必須設為 Full (Strict)**，原因：
-
-- Kamal Proxy 會自動處理 Let's Encrypt 憑證（HTTPS）
-- 若 Cloudflare 設為 Flexible，會導致 HTTP → HTTPS 重新導向迴圈
-- Full (Strict) 確保 Cloudflare ↔ Origin 之間也使用 HTTPS
-
-### 設定步驟
-
-1. 進入 Cloudflare Dashboard → 選擇網域
-2. **SSL/TLS** → **Overview**
-3. 選擇 **Full (Strict)**
-
-### Proxy 狀態
-
-- 開啟「橘色雲朵」(Proxied) 可獲得 CDN 快取與 DDoS 防護
-- 若遇到 WebSocket 問題，確認 **Network** → **WebSockets** 已開啟
+**不要把密碼寫進 git。**舊的 Kamal 設定檔 `config/deploy.yml` 曾經用明文寫著 DB 密碼，那個資料庫已經不存在，新資料庫用的是不同的密碼。
 
 ---
 
-> 所有的秘密（Secrets）都應該保存在 GitHub Secrets 或 `.kamal/secrets` 中，**絕對不要將明文密碼提交到 Git**。如果發現部署失敗，請優先檢查 SSH 通訊與 GCP Registry 的權限設定。
+## 4. 部署限制
+
+- **單副本、先停後起**：Socket.io 的連線與房間廣播在程序記憶體裡，兩個副本同時在線會讓同一局的玩家分散在兩邊。Dokploy 的更新與回滾順序都設成 `stop-first`。遊戲狀態本身存在 Postgres（`Room.gameState`），重啟後可以接續。
+- **部署時玩家會斷線幾秒**：前端會自動重連。
+- **Discord Activity 的 URL Mapping**：Developer Portal 的 root mapping 指向 `hs.miao-bao.cc`。換網域時要一起改。
+
+---
+
+## 5. 回滾
+
+在 Dokploy 把 image 改成之前的 `:X.Y.Z` 再 redeploy。版號打過 tag 就不再重用。Migration 不會自動回退，要回到舊 schema 必須另外寫 migration。

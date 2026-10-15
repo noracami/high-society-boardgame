@@ -1,6 +1,6 @@
 # ADR-0004: 使用 Kamal Accessory 部署 PostgreSQL
 
-- **狀態 (Status)**: Accepted
+- **狀態 (Status)**: Superseded by [ADR-0005](./0005-dokploy-deployment.md)
 - **日期 (Date)**: 2026-01-30
 - **參與者 (Deciders)**: [noracami](https://github.com/noracami)
 
