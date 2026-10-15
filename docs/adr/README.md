@@ -34,6 +34,8 @@
 | **[0001](https://www.google.com/search?q=./0001-initial-architecture.md)**     | ✅ Accepted | [選擇單一入口合體打包方案 (Option A)]    | 2026-01-28 |
 | **[0002](https://www.google.com/search?q=./0002-postgresql-state-machine.md)** | ✅ Accepted | [使用 PostgreSQL 處理回合狀態而非 Redis] | 2026-01-28 |
 | **[0003](https://www.google.com/search?q=./0003-monorepo-structure.md)**       | ✅ Accepted | [採用 pnpm Workspaces 建構 Monorepo]     | 2026-01-28 |
+| **[0004](./0004-kamal-accessory-postgresql.md)** | ⛔ Superseded by 0005 | [使用 Kamal Accessory 部署 PostgreSQL] | 2026-01-30 |
+| **[0005](./0005-dokploy-deployment.md)** | ✅ Accepted | [改用 Dokploy 部署，取代 Kamal] | 2026-10-15 |
 
 ---
 

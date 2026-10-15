@@ -11,9 +11,9 @@
 ```mermaid
 graph TD
     User([玩家 Discord 客戶端]) -- "HTTPS/WSS (Port 443)" --> CF[Cloudflare CDN & Proxy]
-    CF -- "流量轉發" --> KP[Kamal Proxy]
+    CF -- "Cloudflare Tunnel" --> KP[Traefik（Dokploy）]
 
-    subgraph VM [雲端主機 VPS]
+    subgraph VM [雲端主機 VM]
         KP -- "根據 Host 標頭轉發" --> App[Stoa 遊戲容器]
 
         subgraph App [遊戲容器 - Option A 打包]
@@ -58,12 +58,13 @@ graph TD
 ### **C. 資料庫：PostgreSQL**
 
 - **角色**：持久化儲存對局狀態、玩家資料與房間資訊。
-- **部署**：作為 Kamal 的 **Accessory** 運行，獨立於應用程式容器但位於同一台 VM，透過 Docker 內網溝通。
+- **部署**：Dokploy 管理的 Postgres 服務，獨立於應用程式容器但位於同一台 VM，只透過 Docker 內網溝通，每天備份到 R2。
 
-### **D. 基礎設施：Kamal 2 & Cloudflare**
+### **D. 基礎設施：Dokploy & Cloudflare**
 
 - **Cloudflare**：開啟「橘色雲朵」模式，提供自動 CDN 快取（針對圖片、JS/CSS）與 DDoS 防護。
-- **Kamal Proxy**：作為主機的入口，負責處理零停機部署時的流量切換 (Zero-downtime rolling restart)。
+- **Cloudflare Tunnel**：主機不開放對外 port，流量經 tunnel 進入。
+- **Dokploy（Docker Swarm＋Traefik）**：Traefik 依 Host 轉發；部署採 `stop-first`（先停舊的再起新的），因為 Socket.io 連線在程序記憶體裡，不能同時有兩個副本。詳見 [DEPLOYMENT.md](./DEPLOYMENT.md)。
 
 ---
 
